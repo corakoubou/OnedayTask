@@ -123,16 +123,13 @@
       table-layout: fixed;
     }
 
+
     col.work-col {
-      width: 48%;
+      width: 50%;
     }
 
-    col.state-col {
-      width: 24%;
-    }
-
-    col.action-col {
-      width: 28%;
+    col.manage-col {
+      width: 36%;
     }
 
     thead {
@@ -160,11 +157,12 @@
       border-bottom: none;
     }
 
+
     .cell-stack {
       display: flex;
       flex-direction: column;
       gap: 8px;
-      min-height: 112px;
+      min-height: 166px;
     }
 
     .cell-block {
@@ -172,6 +170,10 @@
       border: 1px solid rgba(255, 255, 255, 0.04);
       border-radius: 8px;
       padding: 6px;
+      flex: 1 1 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
     }
 
     .block-title {
@@ -311,9 +313,9 @@
         padding: 6px 4px;
       }
 
-      .cell-stack {
-        gap: 6px;
-        min-height: 106px;
+      .cell-stack,
+      .row-no-box {
+        min-height: 158px;
       }
 
       .cell-block {
@@ -348,14 +350,12 @@
       <table id="taskTable">
         <colgroup>
           <col class="work-col" />
-          <col class="state-col" />
-          <col class="action-col" />
+          <col class="manage-col" />
         </colgroup>
         <thead>
           <tr>
             <th>作業</th>
-            <th>状態</th>
-            <th>操作</th>
+            <th>管理</th>
           </tr>
         </thead>
         <tbody id="taskTableBody"></tbody>
@@ -368,7 +368,8 @@
 
     <div class="hint">
       ※ 横スクロールなしのスマホ向け表形式っす。<br />
-      ※ 1行の中を2段に分けて情報を詰めているっす。<br />
+      ※ 作業列は「予定開始/終了・タスク名・過不足」の3段っす。<br />
+      ※ 管理列は「状態・未完了・複製削除」の3段っす。<br />
       ※ 状態は「未着手 → 仕掛 → 完了」の順で切り替わるっす。<br />
       ※ 時間は HH:MM 形式っす。<br />
       ※ データは自動保存するっす。
@@ -455,6 +456,11 @@
                 />
               </div>
             </div>
+
+            <div class="cell-block">
+              <span class="block-title">過不足</span>
+              <div class="surplus-cell surplus-zero"></div>
+            </div>
           </div>
         </td>
 
@@ -468,15 +474,6 @@
               >${STATUS_TODO}</button>
             </div>
 
-            <div class="cell-block">
-              <span class="block-title">過不足</span>
-              <div class="surplus-cell surplus-zero"></div>
-            </div>
-          </div>
-        </td>
-
-        <td>
-          <div class="cell-stack">
             <div class="cell-block">
               <span class="block-title">未完了</span>
               <label class="check-wrap">
@@ -563,6 +560,7 @@
         saveAll();
       });
     }
+
 
     function readRowDataFromElement(tr) {
       const surplusCell = tr.querySelector(".surplus-cell");
