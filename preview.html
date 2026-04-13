@@ -2,10 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <meta
-    name="viewport"
-    content="width=400, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
-  />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>一日タスク管理</title>
 
   <style>
@@ -24,56 +21,43 @@
 
     * {
       box-sizing: border-box;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    html,
-    body {
-      width: 100%;
-      min-height: 100%;
     }
 
     body {
       margin: 0;
-      padding: 8px;
+      padding: 20px;
       background: var(--bg);
       color: var(--text);
       font-family: "Segoe UI", "Meiryo", sans-serif;
     }
 
     .wrap {
-      width: 100%;
-      max-width: 400px;
+      max-width: 1600px;
       margin: 0 auto;
     }
 
     h1 {
-      margin: 0 0 12px;
-      font-size: 20px;
+      margin: 0 0 16px;
+      font-size: 24px;
       font-weight: 700;
-      line-height: 1.3;
     }
 
     .toolbar {
       display: flex;
-      gap: 8px;
-      margin-bottom: 12px;
-    }
-
-    .toolbar button {
-      flex: 1 1 0;
+      gap: 10px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
     }
 
     button {
       border: none;
       border-radius: 8px;
-      padding: 9px 10px;
+      padding: 10px 14px;
       cursor: pointer;
-      color: #fff;
+      color: white;
       background: var(--accent);
-      font-size: 12px;
+      font-size: 14px;
       line-height: 1.2;
-      min-height: 38px;
     }
 
     button:hover {
@@ -89,10 +73,7 @@
     }
 
     .btn-status {
-      width: 100%;
-      min-height: 32px;
-      padding: 7px 8px;
-      font-size: 11px;
+      min-width: 88px;
       font-weight: 700;
     }
 
@@ -110,26 +91,44 @@
     }
 
     .table-wrap {
+      position: relative;
       width: 100%;
+      max-width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
       border: 1px solid var(--line);
       border-radius: 12px;
       background: var(--panel);
-      overflow: hidden;
+    }
+
+    .table-wrap.resizing {
+      user-select: none;
+    }
+
+    .table-width-resizer {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 14px;
+      height: 14px;
+      cursor: ew-resize;
+      z-index: 30;
+      background: rgba(74, 144, 226, 0.18);
+      border-left: 1px solid rgba(74, 144, 226, 0.45);
+      border-bottom: 1px solid rgba(74, 144, 226, 0.45);
+      border-bottom-left-radius: 8px;
+    }
+
+    .table-width-resizer:hover,
+    .table-width-resizer.active {
+      background: rgba(74, 144, 226, 0.45);
     }
 
     table {
       width: 100%;
+      min-width: 1100px;
       border-collapse: collapse;
       table-layout: fixed;
-    }
-
-
-    col.work-col {
-      width: 50%;
-    }
-
-    col.manage-col {
-      width: 36%;
     }
 
     thead {
@@ -139,60 +138,30 @@
     th,
     td {
       border-bottom: 1px solid var(--line);
-      padding: 8px 6px;
+      padding: 10px 8px;
       text-align: center;
-      vertical-align: top;
+      vertical-align: middle;
     }
 
     th {
-      font-size: 12px;
+      font-size: 14px;
       white-space: nowrap;
+      position: relative;
+      overflow: visible;
     }
 
-    td {
-      font-size: 12px;
+    tbody tr.dragging {
+      opacity: 0.45;
+    }
+
+    tbody tr.drag-over {
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
+      background: rgba(74, 144, 226, 0.12);
     }
 
     tbody tr:last-child td {
       border-bottom: none;
-    }
-
-
-    .cell-stack {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      min-height: 166px;
-    }
-
-    .cell-block {
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.04);
-      border-radius: 8px;
-      padding: 6px;
-      flex: 1 1 0;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-    }
-
-    .block-title {
-      display: block;
-      margin-bottom: 5px;
-      font-size: 10px;
-      color: var(--muted);
-      text-align: left;
-      line-height: 1.2;
-    }
-
-    .two-cols {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6px;
-    }
-
-    .one-col {
-      display: block;
     }
 
     input[type="text"] {
@@ -201,139 +170,76 @@
       color: var(--text);
       border: 1px solid var(--line);
       border-radius: 6px;
-      padding: 7px 6px;
-      font-size: 12px;
+      padding: 8px;
+      font-size: 14px;
       min-width: 0;
-      min-height: 32px;
-      outline: none;
-    }
-
-    input[type="text"]:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.16);
     }
 
     .time-input {
+      width: 100%;
       text-align: center;
       font-family: Consolas, monospace;
-      font-size: 11px;
-      padding: 7px 4px;
     }
 
     .task-input {
+      width: 100%;
+      min-width: 0;
       text-align: left;
     }
 
-    .surplus-cell {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 32px;
-      border-radius: 6px;
-      background: #1b1b22;
-      border: 1px solid var(--line);
+    .work-minutes-cell {
+      min-width: 80px;
       font-weight: 700;
       white-space: nowrap;
-      font-size: 12px;
-      padding: 4px;
-    }
-
-    .surplus-plus {
-      color: #ff8a80;
-    }
-
-    .surplus-minus {
-      color: #80cbc4;
-    }
-
-    .surplus-zero {
       color: var(--muted);
     }
 
-    .check-wrap {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 32px;
-      border-radius: 6px;
-      background: #1b1b22;
-      border: 1px solid var(--line);
-      padding: 4px;
+    .drag-handle {
+      cursor: grab;
+      user-select: none;
+      font-size: 18px;
+      color: var(--muted);
+      padding: 0 4px;
+      display: inline-block;
     }
 
-    .check-wrap input {
-      transform: scale(1.15);
-      margin: 0;
+    .drag-handle:active {
+      cursor: grabbing;
+    }
+
+    .check-cell input {
+      transform: scale(1.2);
       cursor: pointer;
-    }
-
-    .action-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6px;
-    }
-
-    .action-grid button {
-      width: 100%;
-      min-height: 32px;
-      padding: 7px 4px;
-      font-size: 11px;
-    }
-
-    .empty-box {
-      padding: 16px 10px;
-      text-align: center;
-      color: var(--muted);
-      font-size: 12px;
     }
 
     .hint {
       margin-top: 10px;
       color: var(--muted);
-      font-size: 10px;
+      font-size: 13px;
       line-height: 1.7;
-      padding: 0 2px;
     }
 
-    @media (max-width: 400px) {
-      body {
-        padding: 6px;
-      }
+    th.resizable {
+      position: relative;
+    }
 
-      .wrap {
-        max-width: 100%;
-      }
+    .col-resizer {
+      position: absolute;
+      top: 0;
+      right: -4px;
+      width: 10px;
+      height: 100%;
+      cursor: col-resize;
+      user-select: none;
+      z-index: 20;
+    }
 
-      h1 {
-        font-size: 18px;
-      }
+    .col-resizer:hover {
+      background: rgba(74, 144, 226, 0.35);
+    }
 
-      th,
-      td {
-        padding: 6px 4px;
-      }
-
-      .cell-stack,
-      .row-no-box {
-        min-height: 158px;
-      }
-
-      .cell-block {
-        padding: 5px;
-      }
-
-      input[type="text"] {
-        font-size: 11px;
-      }
-
-      .time-input {
-        font-size: 10px;
-      }
-
-      .action-grid button,
-      .btn-status {
-        font-size: 10px;
-      }
+    .col-resizer.active {
+      background: rgba(74, 144, 226, 0.55);
     }
   </style>
 </head>
@@ -346,189 +252,203 @@
       <button id="resetAllBtn" type="button" class="btn-danger">保存データ初期化</button>
     </div>
 
-    <div class="table-wrap">
+    <div class="table-wrap" id="tableWrap">
+      <div
+        class="table-width-resizer"
+        id="tableWidthResizer"
+        title="表の横幅を変更"
+      ></div>
+
       <table id="taskTable">
-        <colgroup>
-          <col class="work-col" />
-          <col class="manage-col" />
+        <colgroup id="taskColGroup">
+          <col style="width: 70px;" />
+          <col style="width: 130px;" />
+          <col style="width: 130px;" />
+          <col style="width: 320px;" />
+          <col style="width: 120px;" />
+          <col style="width: 120px;" />
+          <col style="width: 90px;" />
+          <col style="width: 90px;" />
+          <col style="width: 90px;" />
         </colgroup>
+
         <thead>
           <tr>
-            <th>作業</th>
-            <th>管理</th>
+            <th class="resizable">移動</th>
+            <th class="resizable">予定開始</th>
+            <th class="resizable">予定終了</th>
+            <th class="resizable">タスク</th>
+            <th class="resizable">状態</th>
+            <th class="resizable">作業時間</th>
+            <th class="resizable">未完了</th>
+            <th class="resizable">削除</th>
+            <th>複製</th>
           </tr>
         </thead>
+
         <tbody id="taskTableBody"></tbody>
       </table>
     </div>
 
-    <div class="empty-box" id="emptyBox" hidden>
-      タスクがまだないっす。タスク作成で追加するっす。
-    </div>
-
     <div class="hint">
-      ※ 横スクロールなしのスマホ向け表形式っす。<br />
-      ※ 作業列は「予定開始/終了・タスク名・過不足」の3段っす。<br />
-      ※ 管理列は「状態・未完了・複製削除」の3段っす。<br />
-      ※ 状態は「未着手 → 仕掛 → 完了」の順で切り替わるっす。<br />
+      ※ 行移動は三本線だけドラッグできるっす。<br />
+      ※ 列の右端をドラッグすると、その列の横幅を変更できるっす。<br />
+      ※ 表の右上の小さいハンドルを左右ドラッグすると、表全体の横幅を変更できるっす。<br />
+      ※ 表データ・列幅・表幅は自動保存するっす。<br />
       ※ 時間は HH:MM 形式っす。<br />
-      ※ データは自動保存するっす。
+      ※ 作業時間は予定開始〜予定終了の差分を分で表示するっす。
     </div>
   </div>
 
   <script>
-    const STORAGE_KEY_ROWS = "dailyTaskManager.mobileTable.rows";
+    const STORAGE_KEY_ROWS = "dailyTaskManager.rows";
+    const STORAGE_KEY_COL_WIDTHS = "dailyTaskManager.colWidths";
+    const STORAGE_KEY_TABLE_WIDTH = "dailyTaskManager.tableWidth";
 
     const STATUS_TODO = "未着手";
     const STATUS_DOING = "仕掛";
     const STATUS_DONE = "完了";
 
+    const table = document.getElementById("taskTable");
     const tableBody = document.getElementById("taskTableBody");
     const addTaskBtn = document.getElementById("addTaskBtn");
     const resetAllBtn = document.getElementById("resetAllBtn");
-    const emptyBox = document.getElementById("emptyBox");
+    const colGroup = document.getElementById("taskColGroup");
+    const tableWrap = document.getElementById("tableWrap");
+    const tableWidthResizer = document.getElementById("tableWidthResizer");
+
+    let dragRow = null;
 
     addTaskBtn.addEventListener("click", () => {
       const newRow = addRow();
       saveAll();
 
-      const taskInput = newRow.querySelector(".task-name");
-      if (taskInput) {
-        taskInput.focus();
+      if (newRow) {
+        const taskInput = newRow.querySelector(".task-name");
+        if (taskInput) {
+          taskInput.focus();
+        }
       }
     });
 
     resetAllBtn.addEventListener("click", () => {
       const ok = confirm("保存データを初期化しますか？");
+
       if (!ok) {
         return;
       }
 
       localStorage.removeItem(STORAGE_KEY_ROWS);
+      localStorage.removeItem(STORAGE_KEY_COL_WIDTHS);
+      localStorage.removeItem(STORAGE_KEY_TABLE_WIDTH);
+
       tableBody.innerHTML = "";
+
+      resetColumnWidthsToDefault();
+      resetTableWidthToDefault();
+
       addRow();
       saveAll();
     });
-
-    function createDefaultRowData() {
-      return {
-        startTime: "",
-        endTime: "",
-        taskName: "",
-        status: STATUS_TODO,
-        incomplete: false,
-        surplusText: "",
-        surplusClass: "surplus-zero"
-      };
-    }
 
     function addRow(data = null, insertAfterRow = null) {
       const tr = document.createElement("tr");
 
       tr.innerHTML = `
         <td>
-          <div class="cell-stack">
-            <div class="cell-block">
-              <span class="block-title">予定開始 / 予定終了</span>
-              <div class="two-cols">
-                <input
-                  type="text"
-                  class="time-input start-time"
-                  placeholder="00:00"
-                  maxlength="5"
-                />
-                <input
-                  type="text"
-                  class="time-input end-time"
-                  placeholder="00:00"
-                  maxlength="5"
-                />
-              </div>
-            </div>
-
-            <div class="cell-block">
-              <span class="block-title">タスク名</span>
-              <div class="one-col">
-                <input
-                  type="text"
-                  class="task-input task-name"
-                  placeholder="タスク名"
-                />
-              </div>
-            </div>
-
-            <div class="cell-block">
-              <span class="block-title">過不足</span>
-              <div class="surplus-cell surplus-zero"></div>
-            </div>
-          </div>
+          <span class="drag-handle" title="ドラッグして移動">☰</span>
         </td>
-
         <td>
-          <div class="cell-stack">
-            <div class="cell-block">
-              <span class="block-title">状態</span>
-              <button
-                type="button"
-                class="btn-status status-todo"
-              >${STATUS_TODO}</button>
-            </div>
-
-            <div class="cell-block">
-              <span class="block-title">未完了</span>
-              <label class="check-wrap">
-                <input
-                  type="checkbox"
-                  class="incomplete-check"
-                />
-              </label>
-            </div>
-
-            <div class="cell-block">
-              <span class="block-title">複製 / 削除</span>
-              <div class="action-grid">
-                <button
-                  type="button"
-                  class="btn-copy copy-btn"
-                >複製</button>
-                <button
-                  type="button"
-                  class="btn-danger delete-btn"
-                >削除</button>
-              </div>
-            </div>
-          </div>
+          <input
+            type="text"
+            class="time-input start-time"
+            placeholder="00:00"
+            maxlength="5"
+          >
+        </td>
+        <td>
+          <input
+            type="text"
+            class="time-input end-time"
+            placeholder="00:00"
+            maxlength="5"
+          >
+        </td>
+        <td>
+          <input
+            type="text"
+            class="task-input task-name"
+            placeholder="タスク名"
+          >
+        </td>
+        <td>
+          <button
+            type="button"
+            class="btn-status status-todo"
+          >${STATUS_TODO}</button>
+        </td>
+        <td class="work-minutes-cell"></td>
+        <td class="check-cell">
+          <input
+            type="checkbox"
+            class="incomplete-check"
+          >
+        </td>
+        <td>
+          <button
+            type="button"
+            class="btn-danger delete-btn"
+          >削除</button>
+        </td>
+        <td>
+          <button
+            type="button"
+            class="btn-copy copy-btn"
+          >複製</button>
         </td>
       `;
 
-      if (insertAfterRow && insertAfterRow.parentNode === tableBody) {
+      if (
+        insertAfterRow &&
+        insertAfterRow.parentNode === tableBody
+      ) {
         insertAfterRow.insertAdjacentElement("afterend", tr);
       } else {
         tableBody.appendChild(tr);
       }
 
       bindRowEvents(tr);
-      applyRowDataToElement(tr, data || createDefaultRowData());
-      toggleEmpty();
+
+      if (data) {
+        applyRowDataToElement(tr, data);
+      } else {
+        updateWorkMinutes(tr);
+      }
+
       return tr;
     }
 
     function bindRowEvents(tr) {
+      const dragHandle = tr.querySelector(".drag-handle");
       const startInput = tr.querySelector(".start-time");
       const endInput = tr.querySelector(".end-time");
       const taskInput = tr.querySelector(".task-name");
       const incompleteCheck = tr.querySelector(".incomplete-check");
       const statusBtn = tr.querySelector(".btn-status");
-      const copyBtn = tr.querySelector(".copy-btn");
       const deleteBtn = tr.querySelector(".delete-btn");
+      const copyBtn = tr.querySelector(".copy-btn");
+
+      dragHandle.draggable = true;
 
       startInput.addEventListener("blur", () => {
         startInput.value = normalizeTimeInputValue(startInput.value);
+        updateWorkMinutes(tr);
         saveAll();
       });
 
       endInput.addEventListener("blur", () => {
         endInput.value = normalizeTimeInputValue(endInput.value);
+        updateWorkMinutes(tr);
         saveAll();
       });
 
@@ -544,35 +464,103 @@
         cycleStatus(tr);
       });
 
-      copyBtn.addEventListener("click", () => {
-        const rowData = readRowDataFromElement(tr);
-        addRow(rowData, tr);
+      deleteBtn.addEventListener("click", () => {
+        tr.remove();
         saveAll();
       });
 
-      deleteBtn.addEventListener("click", () => {
-        tr.remove();
+      copyBtn.addEventListener("click", () => {
+        duplicateRow(tr);
+        saveAll();
+      });
 
-        if (tableBody.querySelectorAll("tr").length === 0) {
-          addRow();
+      dragHandle.addEventListener("dragstart", (e) => {
+        if (isColumnResizeInProgress() || isTableResizeInProgress()) {
+          e.preventDefault();
+          return;
+        }
+
+        dragRow = tr;
+        tr.classList.add("dragging");
+
+        if (e.dataTransfer) {
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", "row-drag");
+        }
+      });
+
+      dragHandle.addEventListener("dragend", () => {
+        tr.classList.remove("dragging");
+        clearDragOver();
+        dragRow = null;
+        saveAll();
+      });
+
+      tr.addEventListener("dragover", (e) => {
+        e.preventDefault();
+
+        if (!dragRow || dragRow === tr) {
+          return;
+        }
+
+        tr.classList.add("drag-over");
+      });
+
+      tr.addEventListener("dragleave", () => {
+        tr.classList.remove("drag-over");
+      });
+
+      tr.addEventListener("drop", (e) => {
+        e.preventDefault();
+
+        if (!dragRow || dragRow === tr) {
+          return;
+        }
+
+        tr.classList.remove("drag-over");
+
+        const rows = [...tableBody.querySelectorAll("tr")];
+        const dragIndex = rows.indexOf(dragRow);
+        const dropIndex = rows.indexOf(tr);
+
+        if (dragIndex < dropIndex) {
+          tableBody.insertBefore(dragRow, tr.nextSibling);
+        } else {
+          tableBody.insertBefore(dragRow, tr);
         }
 
         saveAll();
       });
     }
 
+    function clearDragOver() {
+      const rows = tableBody.querySelectorAll("tr");
+
+      rows.forEach((row) => {
+        row.classList.remove("drag-over");
+      });
+    }
+
+    function duplicateRow(sourceRow) {
+      const rowData = readRowDataFromElement(sourceRow);
+      addRow(rowData, sourceRow);
+    }
 
     function readRowDataFromElement(tr) {
-      const surplusCell = tr.querySelector(".surplus-cell");
+      const startTime = tr.querySelector(".start-time").value;
+      const endTime = tr.querySelector(".end-time").value;
+      const taskName = tr.querySelector(".task-name").value;
+      const status = tr.querySelector(".btn-status").textContent;
+      const incomplete = tr.querySelector(".incomplete-check").checked;
+      const workMinutesText = tr.querySelector(".work-minutes-cell").textContent;
 
       return {
-        startTime: tr.querySelector(".start-time").value,
-        endTime: tr.querySelector(".end-time").value,
-        taskName: tr.querySelector(".task-name").value,
-        status: tr.querySelector(".btn-status").textContent,
-        incomplete: tr.querySelector(".incomplete-check").checked,
-        surplusText: surplusCell.textContent,
-        surplusClass: getSurplusClass(surplusCell)
+        startTime: startTime,
+        endTime: endTime,
+        taskName: taskName,
+        status: status,
+        incomplete: incomplete,
+        workMinutesText: workMinutesText
       };
     }
 
@@ -582,28 +570,16 @@
       tr.querySelector(".task-name").value = data.taskName || "";
       tr.querySelector(".incomplete-check").checked = !!data.incomplete;
 
-      setStatus(tr, data.status || STATUS_TODO, false);
+      setStatus(
+        tr,
+        data.status || STATUS_TODO
+      );
 
-      const surplusCell = tr.querySelector(".surplus-cell");
-      surplusCell.textContent = data.surplusText || "";
-      surplusCell.classList.remove("surplus-zero", "surplus-plus", "surplus-minus");
-      surplusCell.classList.add(data.surplusClass || "surplus-zero");
-
-      if (!data.surplusText) {
-        surplusCell.classList.add("surplus-zero");
+      if (data.workMinutesText) {
+        tr.querySelector(".work-minutes-cell").textContent = data.workMinutesText;
+      } else {
+        updateWorkMinutes(tr);
       }
-    }
-
-    function getSurplusClass(cell) {
-      if (cell.classList.contains("surplus-plus")) {
-        return "surplus-plus";
-      }
-
-      if (cell.classList.contains("surplus-minus")) {
-        return "surplus-minus";
-      }
-
-      return "surplus-zero";
     }
 
     function cycleStatus(tr) {
@@ -612,47 +588,45 @@
 
       if (current === STATUS_TODO) {
         const ok = confirm("仕掛ますか？");
+
         if (!ok) {
           return;
         }
 
-        setStatus(tr, STATUS_DOING, true);
-        updateSurplusForDoing(tr);
+        setStatus(tr, STATUS_DOING);
         saveAll();
         return;
       }
 
       if (current === STATUS_DOING) {
-        setStatus(tr, STATUS_DONE, true);
+        setStatus(tr, STATUS_DONE);
         saveAll();
         return;
       }
 
       if (current === STATUS_DONE) {
         const ok = confirm("未着手にしますか？");
+
         if (!ok) {
           return;
         }
 
-        setStatus(tr, STATUS_TODO, true);
-        clearSurplus(tr);
+        setStatus(tr, STATUS_TODO);
         saveAll();
       }
     }
 
-    function setStatus(tr, status, resetIfTodo) {
+    function setStatus(tr, status) {
       const btn = tr.querySelector(".btn-status");
 
       btn.textContent = status;
-      btn.classList.remove("status-todo", "status-doing", "status-done");
+
+      btn.classList.remove("status-todo");
+      btn.classList.remove("status-doing");
+      btn.classList.remove("status-done");
 
       if (status === STATUS_TODO) {
         btn.classList.add("status-todo");
-
-        if (resetIfTodo) {
-          clearSurplus(tr);
-        }
-
         return;
       }
 
@@ -666,45 +640,25 @@
       }
     }
 
-    function updateSurplusForDoing(tr) {
+    function updateWorkMinutes(tr) {
       const startValue = tr.querySelector(".start-time").value;
-      const surplusCell = tr.querySelector(".surplus-cell");
+      const endValue = tr.querySelector(".end-time").value;
+      const cell = tr.querySelector(".work-minutes-cell");
 
-      if (!isValidTime(startValue)) {
-        surplusCell.textContent = "";
-        surplusCell.classList.remove("surplus-plus", "surplus-minus");
-        surplusCell.classList.add("surplus-zero");
+      if (!isValidTime(startValue) || !isValidTime(endValue)) {
+        cell.textContent = "";
         return;
       }
 
-      const now = new Date();
-      const currentMinutes = now.getHours() * 60 + now.getMinutes();
-      const plannedStartMinutes = timeStringToMinutes(startValue);
-      const diffMinutes = currentMinutes - plannedStartMinutes;
-
-      surplusCell.classList.remove("surplus-zero", "surplus-plus", "surplus-minus");
-
-      if (diffMinutes > 0) {
-        surplusCell.textContent = `+${diffMinutes}分`;
-        surplusCell.classList.add("surplus-plus");
-        return;
-      }
+      const startMinutes = timeStringToMinutes(startValue);
+      const endMinutes = timeStringToMinutes(endValue);
+      let diffMinutes = endMinutes - startMinutes;
 
       if (diffMinutes < 0) {
-        surplusCell.textContent = `${diffMinutes}分`;
-        surplusCell.classList.add("surplus-minus");
-        return;
+        diffMinutes += 24 * 60;
       }
 
-      surplusCell.textContent = "0分";
-      surplusCell.classList.add("surplus-zero");
-    }
-
-    function clearSurplus(tr) {
-      const surplusCell = tr.querySelector(".surplus-cell");
-      surplusCell.textContent = "";
-      surplusCell.classList.remove("surplus-plus", "surplus-minus");
-      surplusCell.classList.add("surplus-zero");
+      cell.textContent = `${diffMinutes}分`;
     }
 
     function normalizeTimeInputValue(value) {
@@ -755,7 +709,14 @@
       const parts = value.split(":");
       const hh = Number(parts[0]);
       const mm = Number(parts[1]);
+
       return hh * 60 + mm;
+    }
+
+    function saveAll() {
+      saveRows();
+      saveColumnWidths();
+      saveTableWidth();
     }
 
     function saveRows() {
@@ -763,7 +724,43 @@
         return readRowDataFromElement(tr);
       });
 
-      localStorage.setItem(STORAGE_KEY_ROWS, JSON.stringify(rows));
+      localStorage.setItem(
+        STORAGE_KEY_ROWS,
+        JSON.stringify(rows)
+      );
+    }
+
+    function saveColumnWidths() {
+      const cols = [...colGroup.querySelectorAll("col")].map((col) => {
+        return col.style.width || "";
+      });
+
+      localStorage.setItem(
+        STORAGE_KEY_COL_WIDTHS,
+        JSON.stringify(cols)
+      );
+    }
+
+    function saveTableWidth() {
+      const width = tableWrap.style.width || "";
+
+      localStorage.setItem(
+        STORAGE_KEY_TABLE_WIDTH,
+        width
+      );
+    }
+
+    function loadAll() {
+      loadColumnWidths();
+      loadTableWidth();
+      loadRows();
+
+      const rowCount = tableBody.querySelectorAll("tr").length;
+
+      if (rowCount === 0) {
+        addRow();
+        saveAll();
+      }
     }
 
     function loadRows() {
@@ -773,7 +770,7 @@
         return;
       }
 
-      let rows = [];
+      let rows;
 
       try {
         rows = JSON.parse(raw);
@@ -790,26 +787,209 @@
       });
     }
 
-    function toggleEmpty() {
-      const hasRows = tableBody.querySelectorAll("tr").length > 0;
-      emptyBox.hidden = hasRows;
-    }
+    function loadColumnWidths() {
+      const raw = localStorage.getItem(STORAGE_KEY_COL_WIDTHS);
 
-    function saveAll() {
-      toggleEmpty();
-      saveRows();
-    }
-
-    function loadAll() {
-      loadRows();
-
-      if (tableBody.querySelectorAll("tr").length === 0) {
-        addRow();
+      if (!raw) {
+        return;
       }
 
-      toggleEmpty();
+      let widths;
+
+      try {
+        widths = JSON.parse(raw);
+      } catch (error) {
+        widths = [];
+      }
+
+      if (!Array.isArray(widths)) {
+        return;
+      }
+
+      const cols = colGroup.querySelectorAll("col");
+
+      widths.forEach((width, index) => {
+        if (!cols[index]) {
+          return;
+        }
+
+        if (!width) {
+          return;
+        }
+
+        cols[index].style.width = width;
+      });
     }
 
+    function loadTableWidth() {
+      const width = localStorage.getItem(STORAGE_KEY_TABLE_WIDTH);
+
+      if (!width) {
+        return;
+      }
+
+      tableWrap.style.width = width;
+    }
+
+    function resetColumnWidthsToDefault() {
+      const defaults = [
+        "70px",
+        "130px",
+        "130px",
+        "320px",
+        "120px",
+        "120px",
+        "90px",
+        "90px",
+        "90px"
+      ];
+
+      const cols = colGroup.querySelectorAll("col");
+
+      cols.forEach((col, index) => {
+        col.style.width = defaults[index] || "120px";
+      });
+    }
+
+    function resetTableWidthToDefault() {
+      tableWrap.style.width = "";
+    }
+
+    function enableColumnResize() {
+      const headers = table.querySelectorAll("thead th");
+      const cols = colGroup.querySelectorAll("col");
+
+      headers.forEach((th, index) => {
+        if (!th.classList.contains("resizable")) {
+          return;
+        }
+
+        if (!cols[index]) {
+          return;
+        }
+
+        const resizer = document.createElement("span");
+
+        resizer.className = "col-resizer";
+
+        th.appendChild(resizer);
+
+        let startX = 0;
+        let startWidth = 0;
+        let active = false;
+
+        resizer.addEventListener("mousedown", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+
+          active = true;
+          startX = e.pageX;
+          startWidth = th.getBoundingClientRect().width;
+
+          resizer.classList.add("active");
+          document.body.style.cursor = "col-resize";
+          document.body.style.userSelect = "none";
+
+          function onMouseMove(ev) {
+            if (!active) {
+              return;
+            }
+
+            const diff = ev.pageX - startX;
+            const newWidth = Math.max(
+              50,
+              Math.round(startWidth + diff)
+            );
+
+            cols[index].style.width = `${newWidth}px`;
+          }
+
+          function onMouseUp() {
+            active = false;
+
+            resizer.classList.remove("active");
+            document.body.style.cursor = "";
+            document.body.style.userSelect = "";
+
+            document.removeEventListener("mousemove", onMouseMove);
+            document.removeEventListener("mouseup", onMouseUp);
+
+            saveAll();
+          }
+
+          document.addEventListener("mousemove", onMouseMove);
+          document.addEventListener("mouseup", onMouseUp);
+        });
+      });
+    }
+
+    function enableTableWidthResize() {
+      let startX = 0;
+      let startWidth = 0;
+      let resizing = false;
+
+      tableWidthResizer.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        resizing = true;
+        startX = e.pageX;
+        startWidth = tableWrap.getBoundingClientRect().width;
+
+        tableWidthResizer.classList.add("active");
+        tableWrap.classList.add("resizing");
+
+        document.body.style.cursor = "ew-resize";
+        document.body.style.userSelect = "none";
+
+        function onMouseMove(ev) {
+          if (!resizing) {
+            return;
+          }
+
+          const diff = ev.pageX - startX;
+          const parentWidth = tableWrap.parentElement.getBoundingClientRect().width;
+          const newWidth = Math.max(
+            600,
+            Math.min(
+              parentWidth,
+              Math.round(startWidth + diff)
+            )
+          );
+
+          tableWrap.style.width = `${newWidth}px`;
+        }
+
+        function onMouseUp() {
+          resizing = false;
+
+          tableWidthResizer.classList.remove("active");
+          tableWrap.classList.remove("resizing");
+
+          document.body.style.cursor = "";
+          document.body.style.userSelect = "";
+
+          document.removeEventListener("mousemove", onMouseMove);
+          document.removeEventListener("mouseup", onMouseUp);
+
+          saveAll();
+        }
+
+        document.addEventListener("mousemove", onMouseMove);
+        document.addEventListener("mouseup", onMouseUp);
+      });
+    }
+
+    function isColumnResizeInProgress() {
+      return !!document.querySelector(".col-resizer.active");
+    }
+
+    function isTableResizeInProgress() {
+      return tableWidthResizer.classList.contains("active");
+    }
+
+    enableColumnResize();
+    enableTableWidthResize();
     loadAll();
   </script>
 </body>
