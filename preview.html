@@ -72,6 +72,10 @@
       background: #6f7cff;
     }
 
+    .btn-sync {
+      background: var(--success);
+    }
+
     .btn-status {
       min-width: 88px;
       font-weight: 700;
@@ -126,7 +130,7 @@
 
     table {
       width: 100%;
-      min-width: 1100px;
+      min-width: 1200px;
       border-collapse: collapse;
       table-layout: fixed;
     }
@@ -207,9 +211,15 @@
       cursor: grabbing;
     }
 
-    .check-cell input {
+    .check-cell input,
+    .sync-cell input {
       transform: scale(1.2);
       cursor: pointer;
+    }
+
+    .sync-cell input:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
     }
 
     .hint {
@@ -250,6 +260,7 @@
     <div class="toolbar">
       <button id="addTaskBtn" type="button">タスク作成</button>
       <button id="resetAllBtn" type="button" class="btn-danger">保存データ初期化</button>
+      <button id="syncAllBtn" type="button" class="btn-sync">同期</button>
     </div>
 
     <div class="table-wrap" id="tableWrap">
@@ -264,9 +275,10 @@
           <col style="width: 70px;" />
           <col style="width: 130px;" />
           <col style="width: 130px;" />
-          <col style="width: 320px;" />
+          <col style="width: 300px;" />
           <col style="width: 120px;" />
           <col style="width: 120px;" />
+          <col style="width: 90px;" />
           <col style="width: 90px;" />
           <col style="width: 90px;" />
           <col style="width: 90px;" />
@@ -280,6 +292,7 @@
             <th class="resizable">タスク</th>
             <th class="resizable">状態</th>
             <th class="resizable">作業時間</th>
+            <th class="resizable">同期</th>
             <th class="resizable">未完了</th>
             <th class="resizable">削除</th>
             <th>複製</th>
@@ -296,7 +309,9 @@
       ※ 表の右上の小さいハンドルを左右ドラッグすると、表全体の横幅を変更できるっす。<br />
       ※ 表データ・列幅・表幅は自動保存するっす。<br />
       ※ 時間は HH:MM 形式っす。<br />
-      ※ 作業時間は予定開始〜予定終了の差分を分で表示するっす。
+      ※ フォーカスアウト時の処理順は「作業時間算出 → 同期処理」っす。<br />
+      ※ 同期は2行目以降だけ使用でき、新規行はデフォルトでONっす。<br />
+      ※ 同期ボタンは全行に対して「作業時間算出 → 同期処理」を実行するっす。
     </div>
   </div>
 
@@ -313,6 +328,7 @@
     const tableBody = document.getElementById("taskTableBody");
     const addTaskBtn = document.getElementById("addTaskBtn");
     const resetAllBtn = document.getElementById("resetAllBtn");
+    const syncAllBtn = document.getElementById("syncAllBtn");
     const colGroup = document.getElementById("taskColGroup");
     const tableWrap = document.getElementById("tableWrap");
     const tableWidthResizer = document.getElementById("tableWidthResizer");
@@ -320,7 +336,8 @@
     let dragRow = null;
 
     addTaskBtn.addEventListener("click", () => {
-      const newRow = addRow();
+      const newRow = addRow(null, null, true);
+      refreshSyncCheckboxState();
       saveAll();
 
       if (newRow) {
@@ -348,65 +365,84 @@
       resetTableWidthToDefault();
 
       addRow();
+      refreshSyncCheckboxState();
       saveAll();
     });
 
-    function addRow(data = null, insertAfterRow = null) {
+    syncAllBtn.addEventListener("click", () => {
+      runFullSync();
+    });
+
+    function addRow(data = null, insertAfterRow = null, isNewlyCreated = false) {
       const tr = document.createElement("tr");
 
-      tr.innerHTML = `
-        <td>
-          <span class="drag-handle" title="ドラッグして移動">☰</span>
-        </td>
-        <td>
-          <input
-            type="text"
-            class="time-input start-time"
-            placeholder="00:00"
-            maxlength="5"
-          >
-        </td>
-        <td>
-          <input
-            type="text"
-            class="time-input end-time"
-            placeholder="00:00"
-            maxlength="5"
-          >
-        </td>
-        <td>
-          <input
-            type="text"
-            class="task-input task-name"
-            placeholder="タスク名"
-          >
-        </td>
-        <td>
-          <button
-            type="button"
-            class="btn-status status-todo"
-          >${STATUS_TODO}</button>
-        </td>
-        <td class="work-minutes-cell"></td>
-        <td class="check-cell">
-          <input
-            type="checkbox"
-            class="incomplete-check"
-          >
-        </td>
-        <td>
-          <button
-            type="button"
-            class="btn-danger delete-btn"
-          >削除</button>
-        </td>
-        <td>
-          <button
-            type="button"
-            class="btn-copy copy-btn"
-          >複製</button>
-        </td>
-      `;
+tr.innerHTML = `
+  <td>
+    <span class="drag-handle" title="ドラッグして移動" tabindex="-1">☰</span>
+  </td>
+  <td>
+    <input
+      type="text"
+      class="time-input start-time"
+      placeholder="00:00"
+      maxlength="5"
+      tabindex="0"
+    >
+  </td>
+  <td>
+    <input
+      type="text"
+      class="time-input end-time"
+      placeholder="00:00"
+      maxlength="5"
+      tabindex="0"
+    >
+  </td>
+  <td>
+    <input
+      type="text"
+      class="task-input task-name"
+      placeholder="タスク名"
+      tabindex="0"
+    >
+  </td>
+  <td>
+    <button
+      type="button"
+      class="btn-status status-todo"
+      tabindex="-1"
+    >${STATUS_TODO}</button>
+  </td>
+  <td class="work-minutes-cell" tabindex="-1"></td>
+  <td class="sync-cell">
+    <input
+      type="checkbox"
+      class="sync-check"
+      tabindex="-1"
+    >
+  </td>
+  <td class="check-cell">
+    <input
+      type="checkbox"
+      class="incomplete-check"
+      tabindex="-1"
+    >
+  </td>
+  <td>
+    <button
+      type="button"
+      class="btn-danger delete-btn"
+      tabindex="-1"
+    >削除</button>
+  </td>
+  <td>
+    <button
+      type="button"
+      class="btn-copy copy-btn"
+      tabindex="-1"
+    >複製</button>
+  </td>
+`;
 
       if (
         insertAfterRow &&
@@ -422,8 +458,12 @@
       if (data) {
         applyRowDataToElement(tr, data);
       } else {
+        const syncCheck = tr.querySelector(".sync-check");
+        syncCheck.checked = !!isNewlyCreated;
         updateWorkMinutes(tr);
       }
+
+      refreshSyncCheckboxState();
 
       return tr;
     }
@@ -433,6 +473,7 @@
       const startInput = tr.querySelector(".start-time");
       const endInput = tr.querySelector(".end-time");
       const taskInput = tr.querySelector(".task-name");
+      const syncCheck = tr.querySelector(".sync-check");
       const incompleteCheck = tr.querySelector(".incomplete-check");
       const statusBtn = tr.querySelector(".btn-status");
       const deleteBtn = tr.querySelector(".delete-btn");
@@ -441,18 +482,32 @@
       dragHandle.draggable = true;
 
       startInput.addEventListener("blur", () => {
-        startInput.value = normalizeTimeInputValue(startInput.value);
-        updateWorkMinutes(tr);
-        saveAll();
+        handleTimeBlur(tr, startInput);
       });
 
       endInput.addEventListener("blur", () => {
-        endInput.value = normalizeTimeInputValue(endInput.value);
-        updateWorkMinutes(tr);
-        saveAll();
+        handleTimeBlur(tr, endInput);
       });
 
       taskInput.addEventListener("input", () => {
+        saveAll();
+      });
+
+      syncCheck.addEventListener("change", () => {
+        const rows = getRows();
+        const index = rows.indexOf(tr);
+
+        if (index <= 0) {
+          syncCheck.checked = false;
+          syncCheck.disabled = true;
+          saveAll();
+          return;
+        }
+
+        if (syncCheck.checked) {
+          applySyncFromIndex(index);
+        }
+
         saveAll();
       });
 
@@ -466,12 +521,21 @@
 
       deleteBtn.addEventListener("click", () => {
         tr.remove();
+        refreshSyncCheckboxState();
         saveAll();
       });
 
       copyBtn.addEventListener("click", () => {
-        duplicateRow(tr);
+        const newRow = duplicateRow(tr);
+        refreshSyncCheckboxState();
         saveAll();
+
+        if (newRow) {
+          const taskInputInNewRow = newRow.querySelector(".task-name");
+          if (taskInputInNewRow) {
+            taskInputInNewRow.focus();
+          }
+        }
       });
 
       dragHandle.addEventListener("dragstart", (e) => {
@@ -493,6 +557,7 @@
         tr.classList.remove("dragging");
         clearDragOver();
         dragRow = null;
+        refreshSyncCheckboxState();
         saveAll();
       });
 
@@ -519,7 +584,7 @@
 
         tr.classList.remove("drag-over");
 
-        const rows = [...tableBody.querySelectorAll("tr")];
+        const rows = getRows();
         const dragIndex = rows.indexOf(dragRow);
         const dropIndex = rows.indexOf(tr);
 
@@ -529,7 +594,98 @@
           tableBody.insertBefore(dragRow, tr);
         }
 
+        refreshSyncCheckboxState();
         saveAll();
+      });
+    }
+
+    function handleTimeBlur(tr, inputElement) {
+      inputElement.value = normalizeTimeInputValue(inputElement.value);
+
+      updateWorkMinutes(tr);
+      const rows = getRows();
+      const index = rows.indexOf(tr);
+      applySyncFromIndex(index);
+
+      saveAll();
+    }
+
+    function runFullSync() {
+      const rows = getRows();
+
+      rows.forEach((row) => {
+        updateWorkMinutes(row);
+      });
+
+      applySyncFromIndex(1);
+
+      saveAll();
+    }
+
+    function applySyncFromIndex(startIndex) {
+      const rows = getRows();
+
+      for (let i = startIndex; i < rows.length; i += 1) {
+        const row = rows[i];
+        const syncCheck = row.querySelector(".sync-check");
+
+        if (!syncCheck || !syncCheck.checked) {
+          continue;
+        }
+
+        if (i === 0) {
+          syncCheck.checked = false;
+          syncCheck.disabled = true;
+          continue;
+        }
+
+        const previousRow = rows[i - 1];
+        syncRowFromPrevious(row, previousRow);
+      }
+    }
+
+    function syncRowFromPrevious(row, previousRow) {
+      const previousEnd = previousRow.querySelector(".end-time").value;
+      const startInput = row.querySelector(".start-time");
+      const endInput = row.querySelector(".end-time");
+      const workMinutes = getWorkMinutesValue(row);
+
+      if (!isValidTime(previousEnd)) {
+        return;
+      }
+
+      if (workMinutes === null) {
+        startInput.value = previousEnd;
+        endInput.value = "";
+        updateWorkMinutes(row);
+        return;
+      }
+
+      startInput.value = previousEnd;
+      endInput.value = addMinutesToTimeString(previousEnd, workMinutes);
+      updateWorkMinutes(row);
+    }
+
+    function getRows() {
+      return [...tableBody.querySelectorAll("tr")];
+    }
+
+    function refreshSyncCheckboxState() {
+      const rows = getRows();
+
+      rows.forEach((row, index) => {
+        const syncCheck = row.querySelector(".sync-check");
+
+        if (!syncCheck) {
+          return;
+        }
+
+        if (index === 0) {
+          syncCheck.checked = false;
+          syncCheck.disabled = true;
+        } else {
+          syncCheck.disabled = false;
+        }
       });
     }
 
@@ -543,7 +699,18 @@
 
     function duplicateRow(sourceRow) {
       const rowData = readRowDataFromElement(sourceRow);
-      addRow(rowData, sourceRow);
+      const newRow = addRow(rowData, sourceRow, false);
+
+      const rows = getRows();
+      const newIndex = rows.indexOf(newRow);
+      const syncCheck = newRow.querySelector(".sync-check");
+
+      if (syncCheck) {
+        syncCheck.checked = newIndex > 0;
+      }
+
+      updateWorkMinutes(newRow);
+      return newRow;
     }
 
     function readRowDataFromElement(tr) {
@@ -551,6 +718,7 @@
       const endTime = tr.querySelector(".end-time").value;
       const taskName = tr.querySelector(".task-name").value;
       const status = tr.querySelector(".btn-status").textContent;
+      const sync = tr.querySelector(".sync-check").checked;
       const incomplete = tr.querySelector(".incomplete-check").checked;
       const workMinutesText = tr.querySelector(".work-minutes-cell").textContent;
 
@@ -559,6 +727,7 @@
         endTime: endTime,
         taskName: taskName,
         status: status,
+        sync: sync,
         incomplete: incomplete,
         workMinutesText: workMinutesText
       };
@@ -568,6 +737,7 @@
       tr.querySelector(".start-time").value = data.startTime || "";
       tr.querySelector(".end-time").value = data.endTime || "";
       tr.querySelector(".task-name").value = data.taskName || "";
+      tr.querySelector(".sync-check").checked = !!data.sync;
       tr.querySelector(".incomplete-check").checked = !!data.incomplete;
 
       setStatus(
@@ -647,7 +817,7 @@
 
       if (!isValidTime(startValue) || !isValidTime(endValue)) {
         cell.textContent = "";
-        return;
+        return null;
       }
 
       const startMinutes = timeStringToMinutes(startValue);
@@ -659,6 +829,23 @@
       }
 
       cell.textContent = `${diffMinutes}分`;
+      return diffMinutes;
+    }
+
+    function getWorkMinutesValue(tr) {
+      const text = tr.querySelector(".work-minutes-cell").textContent.trim();
+
+      if (!text) {
+        return null;
+      }
+
+      const match = text.match(/^(\d+)分$/);
+
+      if (!match) {
+        return null;
+      }
+
+      return Number(match[1]);
     }
 
     function normalizeTimeInputValue(value) {
@@ -713,6 +900,19 @@
       return hh * 60 + mm;
     }
 
+    function minutesToTimeString(totalMinutes) {
+      const normalized = ((totalMinutes % (24 * 60)) + (24 * 60)) % (24 * 60);
+      const hh = Math.floor(normalized / 60);
+      const mm = normalized % 60;
+
+      return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+    }
+
+    function addMinutesToTimeString(baseTime, plusMinutes) {
+      const base = timeStringToMinutes(baseTime);
+      return minutesToTimeString(base + plusMinutes);
+    }
+
     function saveAll() {
       saveRows();
       saveColumnWidths();
@@ -720,7 +920,7 @@
     }
 
     function saveRows() {
-      const rows = [...tableBody.querySelectorAll("tr")].map((tr) => {
+      const rows = getRows().map((tr) => {
         return readRowDataFromElement(tr);
       });
 
@@ -754,11 +954,13 @@
       loadColumnWidths();
       loadTableWidth();
       loadRows();
+      refreshSyncCheckboxState();
 
-      const rowCount = tableBody.querySelectorAll("tr").length;
+      const rowCount = getRows().length;
 
       if (rowCount === 0) {
         addRow();
+        refreshSyncCheckboxState();
         saveAll();
       }
     }
@@ -783,7 +985,7 @@
       }
 
       rows.forEach((rowData) => {
-        addRow(rowData);
+        addRow(rowData, null, false);
       });
     }
 
@@ -836,9 +1038,10 @@
         "70px",
         "130px",
         "130px",
-        "320px",
+        "300px",
         "120px",
         "120px",
+        "90px",
         "90px",
         "90px",
         "90px"
