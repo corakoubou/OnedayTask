@@ -311,7 +311,9 @@
       ※ 時間は HH:MM 形式っす。<br />
       ※ フォーカスアウト時の処理順は「作業時間算出 → 同期処理」っす。<br />
       ※ 同期は2行目以降だけ使用でき、新規行はデフォルトでONっす。<br />
-      ※ 同期ボタンは全行に対して「作業時間算出 → 同期処理」を実行するっす。
+      ※ 同期ボタンは全行に対して「作業時間算出 → 同期処理」を実行するっす。<br />
+      ※ Tab移動は 予定開始 → 予定終了 → タスク → 次の行 の順っす。<br />
+      ※ 状態を完了にすると、その行の予定終了は実時間に更新され、後続同期行へ連鎖反映するっす。
     </div>
   </div>
 
@@ -376,73 +378,73 @@
     function addRow(data = null, insertAfterRow = null, isNewlyCreated = false) {
       const tr = document.createElement("tr");
 
-tr.innerHTML = `
-  <td>
-    <span class="drag-handle" title="ドラッグして移動" tabindex="-1">☰</span>
-  </td>
-  <td>
-    <input
-      type="text"
-      class="time-input start-time"
-      placeholder="00:00"
-      maxlength="5"
-      tabindex="0"
-    >
-  </td>
-  <td>
-    <input
-      type="text"
-      class="time-input end-time"
-      placeholder="00:00"
-      maxlength="5"
-      tabindex="0"
-    >
-  </td>
-  <td>
-    <input
-      type="text"
-      class="task-input task-name"
-      placeholder="タスク名"
-      tabindex="0"
-    >
-  </td>
-  <td>
-    <button
-      type="button"
-      class="btn-status status-todo"
-      tabindex="-1"
-    >${STATUS_TODO}</button>
-  </td>
-  <td class="work-minutes-cell" tabindex="-1"></td>
-  <td class="sync-cell">
-    <input
-      type="checkbox"
-      class="sync-check"
-      tabindex="-1"
-    >
-  </td>
-  <td class="check-cell">
-    <input
-      type="checkbox"
-      class="incomplete-check"
-      tabindex="-1"
-    >
-  </td>
-  <td>
-    <button
-      type="button"
-      class="btn-danger delete-btn"
-      tabindex="-1"
-    >削除</button>
-  </td>
-  <td>
-    <button
-      type="button"
-      class="btn-copy copy-btn"
-      tabindex="-1"
-    >複製</button>
-  </td>
-`;
+      tr.innerHTML = `
+        <td>
+          <span class="drag-handle" title="ドラッグして移動" tabindex="-1">☰</span>
+        </td>
+        <td>
+          <input
+            type="text"
+            class="time-input start-time"
+            placeholder="00:00"
+            maxlength="5"
+            tabindex="0"
+          >
+        </td>
+        <td>
+          <input
+            type="text"
+            class="time-input end-time"
+            placeholder="00:00"
+            maxlength="5"
+            tabindex="0"
+          >
+        </td>
+        <td>
+          <input
+            type="text"
+            class="task-input task-name"
+            placeholder="タスク名"
+            tabindex="0"
+          >
+        </td>
+        <td>
+          <button
+            type="button"
+            class="btn-status status-todo"
+            tabindex="-1"
+          >${STATUS_TODO}</button>
+        </td>
+        <td class="work-minutes-cell" tabindex="-1"></td>
+        <td class="sync-cell">
+          <input
+            type="checkbox"
+            class="sync-check"
+            tabindex="-1"
+          >
+        </td>
+        <td class="check-cell">
+          <input
+            type="checkbox"
+            class="incomplete-check"
+            tabindex="-1"
+          >
+        </td>
+        <td>
+          <button
+            type="button"
+            class="btn-danger delete-btn"
+            tabindex="-1"
+          >削除</button>
+        </td>
+        <td>
+          <button
+            type="button"
+            class="btn-copy copy-btn"
+            tabindex="-1"
+          >複製</button>
+        </td>
+      `;
 
       if (
         insertAfterRow &&
@@ -603,6 +605,7 @@ tr.innerHTML = `
       inputElement.value = normalizeTimeInputValue(inputElement.value);
 
       updateWorkMinutes(tr);
+
       const rows = getRows();
       const index = rows.indexOf(tr);
       applySyncFromIndex(index);
@@ -769,7 +772,17 @@ tr.innerHTML = `
       }
 
       if (current === STATUS_DOING) {
+        const endInput = tr.querySelector(".end-time");
+        endInput.value = getCurrentTimeString();
+
+        updateWorkMinutes(tr);
         setStatus(tr, STATUS_DONE);
+
+        const rows = getRows();
+        const index = rows.indexOf(tr);
+
+        applySyncFromIndex(index + 1);
+
         saveAll();
         return;
       }
@@ -784,6 +797,13 @@ tr.innerHTML = `
         setStatus(tr, STATUS_TODO);
         saveAll();
       }
+    }
+
+    function getCurrentTimeString() {
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, "0");
+      const mm = String(now.getMinutes()).padStart(2, "0");
+      return `${hh}:${mm}`;
     }
 
     function setStatus(tr, status) {
