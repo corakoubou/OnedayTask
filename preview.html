@@ -17,11 +17,10 @@
       --danger: #d9534f;
       --success: #4caf50;
       --warning: #ffb300;
+      --csv: #8e44ad;
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
@@ -60,39 +59,21 @@
       line-height: 1.2;
     }
 
-    button:hover {
-      filter: brightness(1.08);
-    }
+    button:hover { filter: brightness(1.08); }
 
-    .btn-danger {
-      background: var(--danger);
-    }
-
-    .btn-copy {
-      background: #6f7cff;
-    }
-
-    .btn-sync {
-      background: var(--success);
-    }
+    .btn-danger { background: var(--danger); }
+    .btn-copy { background: #6f7cff; }
+    .btn-sync { background: var(--success); }
+    .btn-csv { background: var(--csv); }
 
     .btn-status {
       min-width: 88px;
       font-weight: 700;
     }
 
-    .status-todo {
-      background: #6c757d;
-    }
-
-    .status-doing {
-      background: var(--warning);
-      color: #222;
-    }
-
-    .status-done {
-      background: var(--success);
-    }
+    .status-todo { background: #6c757d; }
+    .status-doing { background: var(--warning); color: #222; }
+    .status-done { background: var(--success); }
 
     .table-wrap {
       position: relative;
@@ -105,9 +86,7 @@
       background: var(--panel);
     }
 
-    .table-wrap.resizing {
-      user-select: none;
-    }
+    .table-wrap.resizing { user-select: none; }
 
     .table-width-resizer {
       position: absolute;
@@ -135,12 +114,9 @@
       table-layout: fixed;
     }
 
-    thead {
-      background: var(--panel2);
-    }
+    thead { background: var(--panel2); }
 
-    th,
-    td {
+    th, td {
       border-bottom: 1px solid var(--line);
       padding: 10px 8px;
       text-align: center;
@@ -154,9 +130,7 @@
       overflow: visible;
     }
 
-    tbody tr.dragging {
-      opacity: 0.45;
-    }
+    tbody tr.dragging { opacity: 0.45; }
 
     tbody tr.drag-over {
       outline: 2px solid var(--accent);
@@ -164,9 +138,7 @@
       background: rgba(74, 144, 226, 0.12);
     }
 
-    tbody tr:last-child td {
-      border-bottom: none;
-    }
+    tbody tr:last-child td { border-bottom: none; }
 
     input[type="text"] {
       width: 100%;
@@ -181,7 +153,7 @@
 
     .time-input {
       width: 100%;
-      text-align: center;
+      text-align: center !important;
       font-family: Consolas, monospace;
     }
 
@@ -207,9 +179,7 @@
       display: inline-block;
     }
 
-    .drag-handle:active {
-      cursor: grabbing;
-    }
+    .drag-handle:active { cursor: grabbing; }
 
     .check-cell input,
     .sync-cell input {
@@ -229,9 +199,7 @@
       line-height: 1.7;
     }
 
-    th.resizable {
-      position: relative;
-    }
+    th.resizable { position: relative; }
 
     .col-resizer {
       position: absolute;
@@ -244,13 +212,8 @@
       z-index: 20;
     }
 
-    .col-resizer:hover {
-      background: rgba(74, 144, 226, 0.35);
-    }
-
-    .col-resizer.active {
-      background: rgba(74, 144, 226, 0.55);
-    }
+    .col-resizer:hover { background: rgba(74, 144, 226, 0.35); }
+    .col-resizer.active { background: rgba(74, 144, 226, 0.55); }
   </style>
 </head>
 <body>
@@ -261,14 +224,12 @@
       <button id="addTaskBtn" type="button">タスク作成</button>
       <button id="resetAllBtn" type="button" class="btn-danger">保存データ初期化</button>
       <button id="syncAllBtn" type="button" class="btn-sync">同期</button>
+      <button id="exportCsvBtn" type="button" class="btn-csv">CSV出力</button>
+      <button id="notifyPermissionBtn" type="button">通知許可</button>
     </div>
 
     <div class="table-wrap" id="tableWrap">
-      <div
-        class="table-width-resizer"
-        id="tableWidthResizer"
-        title="表の横幅を変更"
-      ></div>
+      <div class="table-width-resizer" id="tableWidthResizer" title="表の横幅を変更"></div>
 
       <table id="taskTable">
         <colgroup id="taskColGroup">
@@ -308,12 +269,15 @@
       ※ 列の右端をドラッグすると、その列の横幅を変更できるっす。<br />
       ※ 表の右上の小さいハンドルを左右ドラッグすると、表全体の横幅を変更できるっす。<br />
       ※ 表データ・列幅・表幅は自動保存するっす。<br />
-      ※ 時間は HH:MM 形式っす。<br />
+      ※ 時間は HH:MM 形式で中央揃えっす。<br />
       ※ フォーカスアウト時の処理順は「作業時間算出 → 同期処理」っす。<br />
       ※ 同期は2行目以降だけ使用でき、新規行はデフォルトでONっす。<br />
       ※ 同期ボタンは全行に対して「作業時間算出 → 同期処理」を実行するっす。<br />
       ※ Tab移動は 予定開始 → 予定終了 → タスク → 次の行 の順っす。<br />
-      ※ 状態を完了にすると、その行の予定終了は実時間に更新され、後続同期行へ連鎖反映するっす。
+      ※ 状態を完了にすると、その行の予定終了は実時間に更新され、後続同期行へ連鎖反映するっす。<br />
+      ※ 日またぎ対応は有効で、作業時間が15時間を超える場合は0分扱いっす。<br />
+      ※ CSV出力では、表の内容を現在の並び順そのままで保存するっす。<br />
+      ※ テスト用に、仕掛中タスクは30秒ごとにWindows通知するっす。
     </div>
   </div>
 
@@ -331,6 +295,8 @@
     const addTaskBtn = document.getElementById("addTaskBtn");
     const resetAllBtn = document.getElementById("resetAllBtn");
     const syncAllBtn = document.getElementById("syncAllBtn");
+    const exportCsvBtn = document.getElementById("exportCsvBtn");
+    const notifyPermissionBtn = document.getElementById("notifyPermissionBtn");
     const colGroup = document.getElementById("taskColGroup");
     const tableWrap = document.getElementById("tableWrap");
     const tableWidthResizer = document.getElementById("tableWidthResizer");
@@ -352,17 +318,13 @@
 
     resetAllBtn.addEventListener("click", () => {
       const ok = confirm("保存データを初期化しますか？");
-
-      if (!ok) {
-        return;
-      }
+      if (!ok) return;
 
       localStorage.removeItem(STORAGE_KEY_ROWS);
       localStorage.removeItem(STORAGE_KEY_COL_WIDTHS);
       localStorage.removeItem(STORAGE_KEY_TABLE_WIDTH);
 
       tableBody.innerHTML = "";
-
       resetColumnWidthsToDefault();
       resetTableWidthToDefault();
 
@@ -375,81 +337,31 @@
       runFullSync();
     });
 
+    exportCsvBtn.addEventListener("click", () => {
+      exportCsv();
+    });
+
+    notifyPermissionBtn.addEventListener("click", () => {
+      requestNotificationPermission();
+    });
+
     function addRow(data = null, insertAfterRow = null, isNewlyCreated = false) {
       const tr = document.createElement("tr");
 
       tr.innerHTML = `
-        <td>
-          <span class="drag-handle" title="ドラッグして移動" tabindex="-1">☰</span>
-        </td>
-        <td>
-          <input
-            type="text"
-            class="time-input start-time"
-            placeholder="00:00"
-            maxlength="5"
-            tabindex="0"
-          >
-        </td>
-        <td>
-          <input
-            type="text"
-            class="time-input end-time"
-            placeholder="00:00"
-            maxlength="5"
-            tabindex="0"
-          >
-        </td>
-        <td>
-          <input
-            type="text"
-            class="task-input task-name"
-            placeholder="タスク名"
-            tabindex="0"
-          >
-        </td>
-        <td>
-          <button
-            type="button"
-            class="btn-status status-todo"
-            tabindex="-1"
-          >${STATUS_TODO}</button>
-        </td>
+        <td><span class="drag-handle" title="ドラッグして移動" tabindex="-1">☰</span></td>
+        <td><input type="text" class="time-input start-time" placeholder="00:00" maxlength="5" tabindex="0"></td>
+        <td><input type="text" class="time-input end-time" placeholder="00:00" maxlength="5" tabindex="0"></td>
+        <td><input type="text" class="task-input task-name" placeholder="タスク名" tabindex="0"></td>
+        <td><button type="button" class="btn-status status-todo" tabindex="-1">${STATUS_TODO}</button></td>
         <td class="work-minutes-cell" tabindex="-1"></td>
-        <td class="sync-cell">
-          <input
-            type="checkbox"
-            class="sync-check"
-            tabindex="-1"
-          >
-        </td>
-        <td class="check-cell">
-          <input
-            type="checkbox"
-            class="incomplete-check"
-            tabindex="-1"
-          >
-        </td>
-        <td>
-          <button
-            type="button"
-            class="btn-danger delete-btn"
-            tabindex="-1"
-          >削除</button>
-        </td>
-        <td>
-          <button
-            type="button"
-            class="btn-copy copy-btn"
-            tabindex="-1"
-          >複製</button>
-        </td>
+        <td class="sync-cell"><input type="checkbox" class="sync-check" tabindex="-1"></td>
+        <td class="check-cell"><input type="checkbox" class="incomplete-check" tabindex="-1"></td>
+        <td><button type="button" class="btn-danger delete-btn" tabindex="-1">削除</button></td>
+        <td><button type="button" class="btn-copy copy-btn" tabindex="-1">複製</button></td>
       `;
 
-      if (
-        insertAfterRow &&
-        insertAfterRow.parentNode === tableBody
-      ) {
+      if (insertAfterRow && insertAfterRow.parentNode === tableBody) {
         insertAfterRow.insertAdjacentElement("afterend", tr);
       } else {
         tableBody.appendChild(tr);
@@ -466,7 +378,6 @@
       }
 
       refreshSyncCheckboxState();
-
       return tr;
     }
 
@@ -565,11 +476,7 @@
 
       tr.addEventListener("dragover", (e) => {
         e.preventDefault();
-
-        if (!dragRow || dragRow === tr) {
-          return;
-        }
-
+        if (!dragRow || dragRow === tr) return;
         tr.classList.add("drag-over");
       });
 
@@ -579,10 +486,7 @@
 
       tr.addEventListener("drop", (e) => {
         e.preventDefault();
-
-        if (!dragRow || dragRow === tr) {
-          return;
-        }
+        if (!dragRow || dragRow === tr) return;
 
         tr.classList.remove("drag-over");
 
@@ -603,7 +507,6 @@
 
     function handleTimeBlur(tr, inputElement) {
       inputElement.value = normalizeTimeInputValue(inputElement.value);
-
       updateWorkMinutes(tr);
 
       const rows = getRows();
@@ -621,7 +524,6 @@
       });
 
       applySyncFromIndex(1);
-
       saveAll();
     }
 
@@ -632,9 +534,7 @@
         const row = rows[i];
         const syncCheck = row.querySelector(".sync-check");
 
-        if (!syncCheck || !syncCheck.checked) {
-          continue;
-        }
+        if (!syncCheck || !syncCheck.checked) continue;
 
         if (i === 0) {
           syncCheck.checked = false;
@@ -653,9 +553,7 @@
       const endInput = row.querySelector(".end-time");
       const workMinutes = getWorkMinutesValue(row);
 
-      if (!isValidTime(previousEnd)) {
-        return;
-      }
+      if (!isValidTime(previousEnd)) return;
 
       if (workMinutes === null) {
         startInput.value = previousEnd;
@@ -678,10 +576,7 @@
 
       rows.forEach((row, index) => {
         const syncCheck = row.querySelector(".sync-check");
-
-        if (!syncCheck) {
-          return;
-        }
+        if (!syncCheck) return;
 
         if (index === 0) {
           syncCheck.checked = false;
@@ -694,7 +589,6 @@
 
     function clearDragOver() {
       const rows = tableBody.querySelectorAll("tr");
-
       rows.forEach((row) => {
         row.classList.remove("drag-over");
       });
@@ -717,22 +611,14 @@
     }
 
     function readRowDataFromElement(tr) {
-      const startTime = tr.querySelector(".start-time").value;
-      const endTime = tr.querySelector(".end-time").value;
-      const taskName = tr.querySelector(".task-name").value;
-      const status = tr.querySelector(".btn-status").textContent;
-      const sync = tr.querySelector(".sync-check").checked;
-      const incomplete = tr.querySelector(".incomplete-check").checked;
-      const workMinutesText = tr.querySelector(".work-minutes-cell").textContent;
-
       return {
-        startTime: startTime,
-        endTime: endTime,
-        taskName: taskName,
-        status: status,
-        sync: sync,
-        incomplete: incomplete,
-        workMinutesText: workMinutesText
+        startTime: tr.querySelector(".start-time").value,
+        endTime: tr.querySelector(".end-time").value,
+        taskName: tr.querySelector(".task-name").value,
+        status: tr.querySelector(".btn-status").textContent,
+        sync: tr.querySelector(".sync-check").checked,
+        incomplete: tr.querySelector(".incomplete-check").checked,
+        workMinutesText: tr.querySelector(".work-minutes-cell").textContent
       };
     }
 
@@ -743,10 +629,7 @@
       tr.querySelector(".sync-check").checked = !!data.sync;
       tr.querySelector(".incomplete-check").checked = !!data.incomplete;
 
-      setStatus(
-        tr,
-        data.status || STATUS_TODO
-      );
+      setStatus(tr, data.status || STATUS_TODO);
 
       if (data.workMinutesText) {
         tr.querySelector(".work-minutes-cell").textContent = data.workMinutesText;
@@ -761,10 +644,7 @@
 
       if (current === STATUS_TODO) {
         const ok = confirm("仕掛ますか？");
-
-        if (!ok) {
-          return;
-        }
+        if (!ok) return;
 
         setStatus(tr, STATUS_DOING);
         saveAll();
@@ -780,7 +660,6 @@
 
         const rows = getRows();
         const index = rows.indexOf(tr);
-
         applySyncFromIndex(index + 1);
 
         saveAll();
@@ -789,10 +668,7 @@
 
       if (current === STATUS_DONE) {
         const ok = confirm("未着手にしますか？");
-
-        if (!ok) {
-          return;
-        }
+        if (!ok) return;
 
         setStatus(tr, STATUS_TODO);
         saveAll();
@@ -808,24 +684,14 @@
 
     function setStatus(tr, status) {
       const btn = tr.querySelector(".btn-status");
-
       btn.textContent = status;
-
-      btn.classList.remove("status-todo");
-      btn.classList.remove("status-doing");
-      btn.classList.remove("status-done");
+      btn.classList.remove("status-todo", "status-doing", "status-done");
 
       if (status === STATUS_TODO) {
         btn.classList.add("status-todo");
-        return;
-      }
-
-      if (status === STATUS_DOING) {
+      } else if (status === STATUS_DOING) {
         btn.classList.add("status-doing");
-        return;
-      }
-
-      if (status === STATUS_DONE) {
+      } else if (status === STATUS_DONE) {
         btn.classList.add("status-done");
       }
     }
@@ -842,10 +708,13 @@
 
       const startMinutes = timeStringToMinutes(startValue);
       const endMinutes = timeStringToMinutes(endValue);
-      let diffMinutes = endMinutes - startMinutes;
 
-      if (diffMinutes < 0) {
-        diffMinutes += 24 * 60;
+      let diffMinutes = endMinutes - startMinutes;
+      if (diffMinutes < 0) diffMinutes += 24 * 60;
+
+      if (diffMinutes > 15 * 60) {
+        cell.textContent = "0分";
+        return 0;
       }
 
       cell.textContent = `${diffMinutes}分`;
@@ -854,30 +723,19 @@
 
     function getWorkMinutesValue(tr) {
       const text = tr.querySelector(".work-minutes-cell").textContent.trim();
-
-      if (!text) {
-        return null;
-      }
+      if (!text) return null;
 
       const match = text.match(/^(\d+)分$/);
-
-      if (!match) {
-        return null;
-      }
+      if (!match) return null;
 
       return Number(match[1]);
     }
 
     function normalizeTimeInputValue(value) {
-      if (!value) {
-        return "";
-      }
+      if (!value) return "";
 
       const digits = value.replace(/\D/g, "");
-
-      if (digits.length === 0) {
-        return "";
-      }
+      if (digits.length === 0) return "";
 
       let hh = "00";
       let mm = "00";
@@ -893,17 +751,9 @@
       let h = Number(hh);
       let m = Number(mm);
 
-      if (Number.isNaN(h) || Number.isNaN(m)) {
-        return "";
-      }
-
-      if (h > 23) {
-        h = 23;
-      }
-
-      if (m > 59) {
-        m = 59;
-      }
+      if (Number.isNaN(h) || Number.isNaN(m)) return "";
+      if (h > 23) h = 23;
+      if (m > 59) m = 59;
 
       return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
     }
@@ -916,7 +766,6 @@
       const parts = value.split(":");
       const hh = Number(parts[0]);
       const mm = Number(parts[1]);
-
       return hh * 60 + mm;
     }
 
@@ -924,7 +773,6 @@
       const normalized = ((totalMinutes % (24 * 60)) + (24 * 60)) % (24 * 60);
       const hh = Math.floor(normalized / 60);
       const mm = normalized % 60;
-
       return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
     }
 
@@ -940,34 +788,18 @@
     }
 
     function saveRows() {
-      const rows = getRows().map((tr) => {
-        return readRowDataFromElement(tr);
-      });
-
-      localStorage.setItem(
-        STORAGE_KEY_ROWS,
-        JSON.stringify(rows)
-      );
+      const rows = getRows().map((tr) => readRowDataFromElement(tr));
+      localStorage.setItem(STORAGE_KEY_ROWS, JSON.stringify(rows));
     }
 
     function saveColumnWidths() {
-      const cols = [...colGroup.querySelectorAll("col")].map((col) => {
-        return col.style.width || "";
-      });
-
-      localStorage.setItem(
-        STORAGE_KEY_COL_WIDTHS,
-        JSON.stringify(cols)
-      );
+      const cols = [...colGroup.querySelectorAll("col")].map((col) => col.style.width || "");
+      localStorage.setItem(STORAGE_KEY_COL_WIDTHS, JSON.stringify(cols));
     }
 
     function saveTableWidth() {
       const width = tableWrap.style.width || "";
-
-      localStorage.setItem(
-        STORAGE_KEY_TABLE_WIDTH,
-        width
-      );
+      localStorage.setItem(STORAGE_KEY_TABLE_WIDTH, width);
     }
 
     function loadAll() {
@@ -977,7 +809,6 @@
       refreshSyncCheckboxState();
 
       const rowCount = getRows().length;
-
       if (rowCount === 0) {
         addRow();
         refreshSyncCheckboxState();
@@ -987,23 +818,16 @@
 
     function loadRows() {
       const raw = localStorage.getItem(STORAGE_KEY_ROWS);
-
-      if (!raw) {
-        return;
-      }
+      if (!raw) return;
 
       let rows;
-
       try {
         rows = JSON.parse(raw);
       } catch (error) {
         rows = [];
       }
 
-      if (!Array.isArray(rows)) {
-        return;
-      }
-
+      if (!Array.isArray(rows)) return;
       rows.forEach((rowData) => {
         addRow(rowData, null, false);
       });
@@ -1011,62 +835,32 @@
 
     function loadColumnWidths() {
       const raw = localStorage.getItem(STORAGE_KEY_COL_WIDTHS);
-
-      if (!raw) {
-        return;
-      }
+      if (!raw) return;
 
       let widths;
-
       try {
         widths = JSON.parse(raw);
       } catch (error) {
         widths = [];
       }
 
-      if (!Array.isArray(widths)) {
-        return;
-      }
+      if (!Array.isArray(widths)) return;
 
       const cols = colGroup.querySelectorAll("col");
-
       widths.forEach((width, index) => {
-        if (!cols[index]) {
-          return;
-        }
-
-        if (!width) {
-          return;
-        }
-
+        if (!cols[index] || !width) return;
         cols[index].style.width = width;
       });
     }
 
     function loadTableWidth() {
       const width = localStorage.getItem(STORAGE_KEY_TABLE_WIDTH);
-
-      if (!width) {
-        return;
-      }
-
+      if (!width) return;
       tableWrap.style.width = width;
     }
 
     function resetColumnWidthsToDefault() {
-      const defaults = [
-        "70px",
-        "130px",
-        "130px",
-        "300px",
-        "120px",
-        "120px",
-        "90px",
-        "90px",
-        "90px",
-        "90px"
-      ];
-
+      const defaults = ["70px","130px","130px","300px","120px","120px","90px","90px","90px","90px"];
       const cols = colGroup.querySelectorAll("col");
 
       cols.forEach((col, index) => {
@@ -1083,18 +877,11 @@
       const cols = colGroup.querySelectorAll("col");
 
       headers.forEach((th, index) => {
-        if (!th.classList.contains("resizable")) {
-          return;
-        }
-
-        if (!cols[index]) {
-          return;
-        }
+        if (!th.classList.contains("resizable")) return;
+        if (!cols[index]) return;
 
         const resizer = document.createElement("span");
-
         resizer.className = "col-resizer";
-
         th.appendChild(resizer);
 
         let startX = 0;
@@ -1114,29 +901,19 @@
           document.body.style.userSelect = "none";
 
           function onMouseMove(ev) {
-            if (!active) {
-              return;
-            }
-
+            if (!active) return;
             const diff = ev.pageX - startX;
-            const newWidth = Math.max(
-              50,
-              Math.round(startWidth + diff)
-            );
-
+            const newWidth = Math.max(50, Math.round(startWidth + diff));
             cols[index].style.width = `${newWidth}px`;
           }
 
           function onMouseUp() {
             active = false;
-
             resizer.classList.remove("active");
             document.body.style.cursor = "";
             document.body.style.userSelect = "";
-
             document.removeEventListener("mousemove", onMouseMove);
             document.removeEventListener("mouseup", onMouseUp);
-
             saveAll();
           }
 
@@ -1166,35 +943,22 @@
         document.body.style.userSelect = "none";
 
         function onMouseMove(ev) {
-          if (!resizing) {
-            return;
-          }
+          if (!resizing) return;
 
           const diff = ev.pageX - startX;
           const parentWidth = tableWrap.parentElement.getBoundingClientRect().width;
-          const newWidth = Math.max(
-            600,
-            Math.min(
-              parentWidth,
-              Math.round(startWidth + diff)
-            )
-          );
-
+          const newWidth = Math.max(600, Math.min(parentWidth, Math.round(startWidth + diff)));
           tableWrap.style.width = `${newWidth}px`;
         }
 
         function onMouseUp() {
           resizing = false;
-
           tableWidthResizer.classList.remove("active");
           tableWrap.classList.remove("resizing");
-
           document.body.style.cursor = "";
           document.body.style.userSelect = "";
-
           document.removeEventListener("mousemove", onMouseMove);
           document.removeEventListener("mouseup", onMouseUp);
-
           saveAll();
         }
 
@@ -1211,9 +975,208 @@
       return tableWidthResizer.classList.contains("active");
     }
 
+    function exportCsv() {
+      const headers = [
+        "予定開始",
+        "予定終了",
+        "タスク",
+        "状態",
+        "作業時間",
+        "同期",
+        "未完了"
+      ];
+
+      const rows = getRows().map((tr) => [
+        tr.querySelector(".start-time").value || "",
+        tr.querySelector(".end-time").value || "",
+        tr.querySelector(".task-name").value || "",
+        tr.querySelector(".btn-status").textContent || "",
+        tr.querySelector(".work-minutes-cell").textContent || "",
+        tr.querySelector(".sync-check").checked ? "ON" : "OFF",
+        tr.querySelector(".incomplete-check").checked ? "ON" : "OFF"
+      ]);
+
+      const lines = [headers, ...rows].map((row) => row.map(csvEscape).join(","));
+      const csvText = "\uFEFF" + lines.join("\r\n");
+      const blob = new Blob([csvText], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = url;
+      link.download = `daily_task_manager_${getTimestampString()}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+
+    function csvEscape(value) {
+      const stringValue = String(value ?? "");
+      return `"${stringValue.replace(/"/g, '""')}"`;
+    }
+
+    function getTimestampString() {
+      const now = new Date();
+      const yyyy = String(now.getFullYear());
+      const mm = String(now.getMonth() + 1).padStart(2, "0");
+      const dd = String(now.getDate()).padStart(2, "0");
+      const hh = String(now.getHours()).padStart(2, "0");
+      const mi = String(now.getMinutes()).padStart(2, "0");
+      const ss = String(now.getSeconds()).padStart(2, "0");
+      return `${yyyy}${mm}${dd}${hh}${mi}${ss}`;
+    }
+
+
+    const TASK_NOTIFY_INTERVAL_MS = 10 * 60 * 1000;
+    const taskNotifyMap = new Map();
+
+    function requestNotificationPermission() {
+      if (!("Notification" in window)) {
+        alert("このブラウザは通知に対応していません。");
+        return;
+      }
+
+      if (Notification.permission === "granted") {
+        alert("通知はすでに許可されています。");
+        return;
+      }
+
+      if (Notification.permission === "denied") {
+        alert("通知がブロックされています。ブラウザまたはWindowsの通知設定を確認してください。");
+        return;
+      }
+
+      Notification.requestPermission().then((permission) => {
+        if (permission === "granted") {
+          alert("通知を許可しました。");
+        }
+      });
+    }
+
+    function startTaskNotificationTimer() {
+      setInterval(() => {
+        checkDoingRowsAndNotify();
+      }, 1000);
+    }
+
+    function checkDoingRowsAndNotify() {
+      if (!("Notification" in window)) return;
+      if (Notification.permission !== "granted") return;
+
+      const now = new Date();
+      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+      const nowMs = Date.now();
+
+      getRows().forEach((row, index) => {
+        const status = row.querySelector(".btn-status").textContent;
+
+        if (status !== STATUS_DOING) {
+          taskNotifyMap.delete(row);
+          return;
+        }
+
+        const startValue = row.querySelector(".start-time").value;
+        const endValue = row.querySelector(".end-time").value;
+        const taskName = row.querySelector(".task-name").value.trim() || `タスク${index + 1}`;
+
+        if (!isValidTime(startValue) || !isValidTime(endValue)) {
+          return;
+        }
+
+        const lastNotifiedAt = taskNotifyMap.get(row) || 0;
+
+        if (nowMs - lastNotifiedAt < TASK_NOTIFY_INTERVAL_MS) {
+          return;
+        }
+
+        const position = getNowPositionForTask(startValue, endValue, nowMinutes);
+
+        if (position.kind === "inside") {
+          showTaskNotification(
+            "作業中タスク",
+            `${taskName}\n残り時間：${position.remainingMinutes}分`
+          );
+          taskNotifyMap.set(row, nowMs);
+          return;
+        }
+
+        if (position.kind === "after") {
+          showTaskNotification(
+            "未完了タスク",
+            `${taskName}\n終了予定を過ぎています。未完了です。`
+          );
+          taskNotifyMap.set(row, nowMs);
+        }
+      });
+    }
+
+    function getNowPositionForTask(startValue, endValue, nowMinutes) {
+      const startMinutes = timeStringToMinutes(startValue);
+      const endMinutes = timeStringToMinutes(endValue);
+
+      if (startMinutes <= endMinutes) {
+        if (nowMinutes >= startMinutes && nowMinutes <= endMinutes) {
+          return {
+            kind: "inside",
+            remainingMinutes: Math.max(0, endMinutes - nowMinutes)
+          };
+        }
+
+        if (nowMinutes > endMinutes) {
+          return {
+            kind: "after",
+            remainingMinutes: 0
+          };
+        }
+
+        return {
+          kind: "before",
+          remainingMinutes: endMinutes - startMinutes
+        };
+      }
+
+      // 日またぎ: 例 23:00 -> 01:00
+      if (nowMinutes >= startMinutes || nowMinutes <= endMinutes) {
+        const remainingMinutes =
+          nowMinutes >= startMinutes
+            ? (24 * 60 - nowMinutes) + endMinutes
+            : endMinutes - nowMinutes;
+
+        return {
+          kind: "inside",
+          remainingMinutes: Math.max(0, remainingMinutes)
+        };
+      }
+
+      // 日またぎ予定で、現在時刻が終了後〜開始前の間にある場合は終了後扱い
+      if (nowMinutes > endMinutes && nowMinutes < startMinutes) {
+        return {
+          kind: "after",
+          remainingMinutes: 0
+        };
+      }
+
+      return {
+        kind: "before",
+        remainingMinutes: 0
+      };
+    }
+
+    function showTaskNotification(title, body) {
+      const notification = new Notification(title, {
+        body: body
+      });
+
+      notification.onclick = () => {
+        window.focus();
+      };
+    }
+
+
     enableColumnResize();
     enableTableWidthResize();
     loadAll();
+    startTaskNotificationTimer();
   </script>
 </body>
 </html>
