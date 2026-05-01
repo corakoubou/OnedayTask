@@ -42,10 +42,15 @@
     }
 
     .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
       display: flex;
       gap: 10px;
       margin-bottom: 16px;
       flex-wrap: wrap;
+      padding: 8px 0;
+      background: var(--bg);
     }
 
     button {
@@ -170,6 +175,26 @@
       color: var(--muted);
     }
 
+    .work-minutes-input {
+      width: 100%;
+      text-align: center !important;
+      font-family: Consolas, monospace;
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    .work-minutes-wrap {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .work-minutes-label {
+      color: var(--muted);
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
     .drag-handle {
       cursor: grab;
       user-select: none;
@@ -222,6 +247,12 @@
 
     <div class="toolbar">
       <button id="addTaskBtn" type="button">タスク作成</button>
+      <button type="button" class="duration-task-btn" data-minutes="10">10分</button>
+      <button type="button" class="duration-task-btn" data-minutes="15">15分</button>
+      <button type="button" class="duration-task-btn" data-minutes="20">20分</button>
+      <button type="button" class="duration-task-btn" data-minutes="30">30分</button>
+      <button type="button" class="duration-task-btn" data-minutes="45">45分</button>
+      <button type="button" class="duration-task-btn" data-minutes="60">60分</button>
       <button id="resetAllBtn" type="button" class="btn-danger">保存データ初期化</button>
       <button id="syncAllBtn" type="button" class="btn-sync">同期</button>
       <button id="exportCsvBtn" type="button" class="btn-csv">CSV出力</button>
@@ -277,6 +308,8 @@
       ※ 状態を完了にすると、その行の予定終了は実時間に更新され、後続同期行へ連鎖反映するっす。<br />
       ※ 日またぎ対応は有効で、作業時間が15時間を超える場合は0分扱いっす。<br />
       ※ CSV出力では、表の内容を現在の並び順そのままで保存するっす。<br />
+      ※ 作業時間欄は数字だけ入力し、右側の「分」は固定表示っす。作業時間を編集すると、予定開始＋作業時間で予定終了を書き換えるっす。<br />
+      ※ 10/15/20/30/45/60分ボタンは、末尾に指定分数の行を追加するっす。<br />
       ※ テスト用に、仕掛中タスクは30秒ごとにWindows通知するっす。
     </div>
   </div>
@@ -293,6 +326,7 @@
     const table = document.getElementById("taskTable");
     const tableBody = document.getElementById("taskTableBody");
     const addTaskBtn = document.getElementById("addTaskBtn");
+    const durationTaskBtns = document.querySelectorAll(".duration-task-btn");
     const resetAllBtn = document.getElementById("resetAllBtn");
     const syncAllBtn = document.getElementById("syncAllBtn");
     const exportCsvBtn = document.getElementById("exportCsvBtn");
@@ -314,6 +348,13 @@
           taskInput.focus();
         }
       }
+    });
+
+    durationTaskBtns.forEach((button) => {
+      button.addEventListener("click", () => {
+        const minutes = Number(button.dataset.minutes);
+        addDurationTaskRow(minutes);
+      });
     });
 
     resetAllBtn.addEventListener("click", () => {
@@ -354,7 +395,17 @@
         <td><input type="text" class="time-input end-time" placeholder="00:00" maxlength="5" tabindex="0"></td>
         <td><input type="text" class="task-input task-name" placeholder="タスク名" tabindex="0"></td>
         <td><button type="button" class="btn-status status-todo" tabindex="-1">${STATUS_TODO}</button></td>
-        <td class="work-minutes-cell" tabindex="-1"></td>
+        <td class="work-minutes-cell" tabindex="-1">
+          <div class="work-minutes-wrap">
+            <input
+              type="text"
+              class="work-minutes-input"
+              placeholder="0"
+              tabindex="-1"
+            >
+            <span class="work-minutes-label">分</span>
+          </div>
+        </td>
         <td class="sync-cell"><input type="checkbox" class="sync-check" tabindex="-1"></td>
         <td class="check-cell"><input type="checkbox" class="incomplete-check" tabindex="-1"></td>
         <td><button type="button" class="btn-danger delete-btn" tabindex="-1">削除</button></td>
@@ -381,11 +432,50 @@
       return tr;
     }
 
+    function addDurationTaskRow(minutes) {
+      const rowsBeforeAdd = getRows();
+      const previousRow = rowsBeforeAdd.length > 0 ? rowsBeforeAdd[rowsBeforeAdd.length - 1] : null;
+      const newRow = addRow(null, null, true);
+
+      const startInput = newRow.querySelector(".start-time");
+      const endInput = newRow.querySelector(".end-time");
+      const workInput = newRow.querySelector(".work-minutes-input");
+      const taskInput = newRow.querySelector(".task-name");
+
+      let startTime = "";
+
+      if (previousRow) {
+        const previousEnd = previousRow.querySelector(".end-time").value;
+
+        if (isValidTime(previousEnd)) {
+          startTime = previousEnd;
+        } else {
+          startTime = getCurrentTimeString();
+        }
+      } else {
+        startTime = getCurrentTimeString();
+      }
+
+      startInput.value = startTime;
+      endInput.value = addMinutesToTimeString(startTime, minutes);
+      workInput.value = `${minutes}`;
+
+      updateWorkMinutes(newRow);
+      refreshSyncCheckboxState();
+
+      if (taskInput) {
+        taskInput.focus();
+      }
+
+      saveAll();
+    }
+
     function bindRowEvents(tr) {
       const dragHandle = tr.querySelector(".drag-handle");
       const startInput = tr.querySelector(".start-time");
       const endInput = tr.querySelector(".end-time");
       const taskInput = tr.querySelector(".task-name");
+      const workInput = tr.querySelector(".work-minutes-input");
       const syncCheck = tr.querySelector(".sync-check");
       const incompleteCheck = tr.querySelector(".incomplete-check");
       const statusBtn = tr.querySelector(".btn-status");
@@ -404,6 +494,10 @@
 
       taskInput.addEventListener("input", () => {
         saveAll();
+      });
+
+      workInput.addEventListener("blur", () => {
+        handleWorkMinutesBlur(tr, workInput);
       });
 
       syncCheck.addEventListener("change", () => {
@@ -516,6 +610,32 @@
       saveAll();
     }
 
+    function handleWorkMinutesBlur(tr, inputElement) {
+      const minutes = normalizeWorkMinutesInputValue(inputElement.value);
+      const startInput = tr.querySelector(".start-time");
+      const endInput = tr.querySelector(".end-time");
+
+      if (minutes === null) {
+        inputElement.value = "";
+        saveAll();
+        return;
+      }
+
+      inputElement.value = `${minutes}`;
+
+      if (isValidTime(startInput.value)) {
+        endInput.value = addMinutesToTimeString(startInput.value, minutes);
+      }
+
+      updateWorkMinutes(tr);
+
+      const rows = getRows();
+      const index = rows.indexOf(tr);
+      applySyncFromIndex(index + 1);
+
+      saveAll();
+    }
+
     function runFullSync() {
       const rows = getRows();
 
@@ -618,7 +738,7 @@
         status: tr.querySelector(".btn-status").textContent,
         sync: tr.querySelector(".sync-check").checked,
         incomplete: tr.querySelector(".incomplete-check").checked,
-        workMinutesText: tr.querySelector(".work-minutes-cell").textContent
+        workMinutesText: tr.querySelector(".work-minutes-input").value
       };
     }
 
@@ -632,7 +752,8 @@
       setStatus(tr, data.status || STATUS_TODO);
 
       if (data.workMinutesText) {
-        tr.querySelector(".work-minutes-cell").textContent = data.workMinutesText;
+        const minutes = normalizeWorkMinutesInputValue(data.workMinutesText);
+        tr.querySelector(".work-minutes-input").value = minutes === null ? "" : String(minutes);
       } else {
         updateWorkMinutes(tr);
       }
@@ -699,10 +820,10 @@
     function updateWorkMinutes(tr) {
       const startValue = tr.querySelector(".start-time").value;
       const endValue = tr.querySelector(".end-time").value;
-      const cell = tr.querySelector(".work-minutes-cell");
+      const cell = tr.querySelector(".work-minutes-input");
 
       if (!isValidTime(startValue) || !isValidTime(endValue)) {
-        cell.textContent = "";
+        cell.value = "";
         return null;
       }
 
@@ -713,22 +834,34 @@
       if (diffMinutes < 0) diffMinutes += 24 * 60;
 
       if (diffMinutes > 15 * 60) {
-        cell.textContent = "0分";
+        cell.value = "0";
         return 0;
       }
 
-      cell.textContent = `${diffMinutes}分`;
+      cell.value = `${diffMinutes}`;
       return diffMinutes;
     }
 
     function getWorkMinutesValue(tr) {
-      const text = tr.querySelector(".work-minutes-cell").textContent.trim();
+      const text = tr.querySelector(".work-minutes-input").value.trim();
       if (!text) return null;
 
-      const match = text.match(/^(\d+)分$/);
+      const match = text.match(/^(\d+)(?:分)?$/);
       if (!match) return null;
 
       return Number(match[1]);
+    }
+
+    function normalizeWorkMinutesInputValue(value) {
+      if (!value) return null;
+
+      const digits = String(value).replace(/\D/g, "");
+      if (digits.length === 0) return null;
+
+      const minutes = Number(digits);
+      if (Number.isNaN(minutes)) return null;
+
+      return Math.max(0, minutes);
     }
 
     function normalizeTimeInputValue(value) {
@@ -975,6 +1108,12 @@
       return tableWidthResizer.classList.contains("active");
     }
 
+    function formatWorkMinutesForOutput(value) {
+      const trimmed = String(value || "").trim();
+      if (!trimmed) return "";
+      return trimmed.endsWith("分") ? trimmed : `${trimmed}分`;
+    }
+
     function exportCsv() {
       const headers = [
         "予定開始",
@@ -991,7 +1130,7 @@
         tr.querySelector(".end-time").value || "",
         tr.querySelector(".task-name").value || "",
         tr.querySelector(".btn-status").textContent || "",
-        tr.querySelector(".work-minutes-cell").textContent || "",
+        formatWorkMinutesForOutput(tr.querySelector(".work-minutes-input").value || ""),
         tr.querySelector(".sync-check").checked ? "ON" : "OFF",
         tr.querySelector(".incomplete-check").checked ? "ON" : "OFF"
       ]);
@@ -1027,7 +1166,7 @@
     }
 
 
-    const TASK_NOTIFY_INTERVAL_MS = 10 * 60 * 1000;
+    const TASK_NOTIFY_INTERVAL_MS = 30 * 1000;
     const taskNotifyMap = new Map();
 
     function requestNotificationPermission() {
