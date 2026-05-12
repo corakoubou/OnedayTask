@@ -71,6 +71,18 @@
     .btn-sync { background: var(--success); }
     .btn-csv { background: var(--csv); }
 
+    .btn-notify-toggle {
+      background: #607d8b;
+    }
+
+    .btn-notify-toggle.is-on {
+      background: var(--success);
+    }
+
+    .btn-notify-toggle.is-off {
+      background: #6c757d;
+    }
+
     .btn-status {
       min-width: 88px;
       font-weight: 700;
@@ -206,8 +218,8 @@
 
     .drag-handle:active { cursor: grabbing; }
 
-    .check-cell input,
-    .sync-cell input {
+    .sync-cell input,
+    .insert-cell input {
       transform: scale(1.2);
       cursor: pointer;
     }
@@ -257,6 +269,8 @@
       <button id="syncAllBtn" type="button" class="btn-sync">同期</button>
       <button id="exportCsvBtn" type="button" class="btn-csv">CSV出力</button>
       <button id="notifyPermissionBtn" type="button">通知許可</button>
+      <button id="insideNotifyToggleBtn" type="button" class="btn-notify-toggle">時間内通知ON</button>
+      <button id="overdueNotifyToggleBtn" type="button" class="btn-notify-toggle">時間外通知ON</button>
     </div>
 
     <div class="table-wrap" id="tableWrap">
@@ -265,6 +279,7 @@
       <table id="taskTable">
         <colgroup id="taskColGroup">
           <col style="width: 70px;" />
+          <col style="width: 90px;" />
           <col style="width: 130px;" />
           <col style="width: 130px;" />
           <col style="width: 300px;" />
@@ -273,19 +288,18 @@
           <col style="width: 90px;" />
           <col style="width: 90px;" />
           <col style="width: 90px;" />
-          <col style="width: 90px;" />
         </colgroup>
 
         <thead>
           <tr>
             <th class="resizable">移動</th>
+            <th class="resizable">挿入位置</th>
             <th class="resizable">予定開始</th>
             <th class="resizable">予定終了</th>
             <th class="resizable">タスク</th>
             <th class="resizable">状態</th>
             <th class="resizable">作業時間</th>
             <th class="resizable">同期</th>
-            <th class="resizable">未完了</th>
             <th class="resizable">削除</th>
             <th>複製</th>
           </tr>
@@ -308,8 +322,11 @@
       ※ 状態を完了にすると、その行の予定終了は実時間に更新され、後続同期行へ連鎖反映するっす。<br />
       ※ 日またぎ対応は有効で、作業時間が15時間を超える場合は0分扱いっす。<br />
       ※ CSV出力では、表の内容を現在の並び順そのままで保存するっす。<br />
+      ※ 初期表示と保存データ初期化後は、行が0件の状態になるっす。<br />
+      ※ 時間内通知と時間外通知は、それぞれ個別にON/OFFできるっす。<br />
       ※ 作業時間欄は数字だけ入力し、右側の「分」は固定表示っす。作業時間を編集すると、予定開始＋作業時間で予定終了を書き換えるっす。<br />
-      ※ 10/15/20/30/45/60分ボタンは、末尾に指定分数の行を追加するっす。<br />
+      ※ 10/15/20/30/45/60分ボタンは、挿入位置チェックがあればその下へ、なければ末尾へ指定分数の行を追加するっす。<br />
+      ※ 挿入位置チェックは移動列の右側にあり、1か所だけ付けられるっす。<br />
       ※ テスト用に、仕掛中タスクは30秒ごとにWindows通知するっす。
     </div>
   </div>
@@ -318,6 +335,8 @@
     const STORAGE_KEY_ROWS = "dailyTaskManager.rows";
     const STORAGE_KEY_COL_WIDTHS = "dailyTaskManager.colWidths";
     const STORAGE_KEY_TABLE_WIDTH = "dailyTaskManager.tableWidth";
+    const STORAGE_KEY_INSIDE_NOTIFY_ENABLED = "dailyTaskManager.insideNotifyEnabled";
+    const STORAGE_KEY_OVERDUE_NOTIFY_ENABLED = "dailyTaskManager.overdueNotifyEnabled";
 
     const STATUS_TODO = "未着手";
     const STATUS_DOING = "仕掛";
@@ -331,15 +350,21 @@
     const syncAllBtn = document.getElementById("syncAllBtn");
     const exportCsvBtn = document.getElementById("exportCsvBtn");
     const notifyPermissionBtn = document.getElementById("notifyPermissionBtn");
+    const insideNotifyToggleBtn = document.getElementById("insideNotifyToggleBtn");
+    const overdueNotifyToggleBtn = document.getElementById("overdueNotifyToggleBtn");
     const colGroup = document.getElementById("taskColGroup");
     const tableWrap = document.getElementById("tableWrap");
     const tableWidthResizer = document.getElementById("tableWidthResizer");
 
     let dragRow = null;
+    let insideNotifyEnabled = localStorage.getItem(STORAGE_KEY_INSIDE_NOTIFY_ENABLED) !== "false";
+    let overdueNotifyEnabled = localStorage.getItem(STORAGE_KEY_OVERDUE_NOTIFY_ENABLED) !== "false";
 
     addTaskBtn.addEventListener("click", () => {
-      const newRow = addRow(null, null, true);
+      const insertAfterRow = getInsertPositionRow();
+      const newRow = addRow(null, insertAfterRow, true);
       refreshSyncCheckboxState();
+      applySyncFromRowIfNeeded(newRow);
       saveAll();
 
       if (newRow) {
@@ -369,7 +394,6 @@
       resetColumnWidthsToDefault();
       resetTableWidthToDefault();
 
-      addRow();
       refreshSyncCheckboxState();
       saveAll();
     });
@@ -382,6 +406,18 @@
       exportCsv();
     });
 
+    insideNotifyToggleBtn.addEventListener("click", () => {
+      insideNotifyEnabled = !insideNotifyEnabled;
+      localStorage.setItem(STORAGE_KEY_INSIDE_NOTIFY_ENABLED, String(insideNotifyEnabled));
+      updateNotificationToggleButtons();
+    });
+
+    overdueNotifyToggleBtn.addEventListener("click", () => {
+      overdueNotifyEnabled = !overdueNotifyEnabled;
+      localStorage.setItem(STORAGE_KEY_OVERDUE_NOTIFY_ENABLED, String(overdueNotifyEnabled));
+      updateNotificationToggleButtons();
+    });
+
     notifyPermissionBtn.addEventListener("click", () => {
       requestNotificationPermission();
     });
@@ -391,6 +427,7 @@
 
       tr.innerHTML = `
         <td><span class="drag-handle" title="ドラッグして移動" tabindex="-1">☰</span></td>
+        <td class="insert-cell"><input type="checkbox" class="insert-check" tabindex="-1"></td>
         <td><input type="text" class="time-input start-time" placeholder="00:00" maxlength="5" tabindex="0"></td>
         <td><input type="text" class="time-input end-time" placeholder="00:00" maxlength="5" tabindex="0"></td>
         <td><input type="text" class="task-input task-name" placeholder="タスク名" tabindex="0"></td>
@@ -407,7 +444,6 @@
           </div>
         </td>
         <td class="sync-cell"><input type="checkbox" class="sync-check" tabindex="-1"></td>
-        <td class="check-cell"><input type="checkbox" class="incomplete-check" tabindex="-1"></td>
         <td><button type="button" class="btn-danger delete-btn" tabindex="-1">削除</button></td>
         <td><button type="button" class="btn-copy copy-btn" tabindex="-1">複製</button></td>
       `;
@@ -433,9 +469,10 @@
     }
 
     function addDurationTaskRow(minutes) {
+      const insertAfterRow = getInsertPositionRow();
       const rowsBeforeAdd = getRows();
-      const previousRow = rowsBeforeAdd.length > 0 ? rowsBeforeAdd[rowsBeforeAdd.length - 1] : null;
-      const newRow = addRow(null, null, true);
+      const previousRow = insertAfterRow || (rowsBeforeAdd.length > 0 ? rowsBeforeAdd[rowsBeforeAdd.length - 1] : null);
+      const newRow = addRow(null, insertAfterRow, true);
 
       const startInput = newRow.querySelector(".start-time");
       const endInput = newRow.querySelector(".end-time");
@@ -463,6 +500,10 @@
       updateWorkMinutes(newRow);
       refreshSyncCheckboxState();
 
+      const rows = getRows();
+      const index = rows.indexOf(newRow);
+      applySyncFromIndex(index + 1);
+
       if (taskInput) {
         taskInput.focus();
       }
@@ -477,7 +518,7 @@
       const taskInput = tr.querySelector(".task-name");
       const workInput = tr.querySelector(".work-minutes-input");
       const syncCheck = tr.querySelector(".sync-check");
-      const incompleteCheck = tr.querySelector(".incomplete-check");
+      const insertCheck = tr.querySelector(".insert-check");
       const statusBtn = tr.querySelector(".btn-status");
       const deleteBtn = tr.querySelector(".delete-btn");
       const copyBtn = tr.querySelector(".copy-btn");
@@ -518,8 +559,12 @@
         saveAll();
       });
 
-      incompleteCheck.addEventListener("change", () => {
-        saveAll();
+      insertCheck.addEventListener("change", () => {
+        if (insertCheck.checked) {
+          setInsertPositionRow(tr);
+        } else {
+          saveAll();
+        }
       });
 
       statusBtn.addEventListener("click", () => {
@@ -691,6 +736,54 @@
       return [...tableBody.querySelectorAll("tr")];
     }
 
+    function getInsertPositionRow() {
+      return getRows().find((row) => {
+        const insertCheck = row.querySelector(".insert-check");
+        return insertCheck && insertCheck.checked;
+      }) || null;
+    }
+
+    function setInsertPositionRow(targetRow) {
+      getRows().forEach((row) => {
+        const insertCheck = row.querySelector(".insert-check");
+        if (!insertCheck) return;
+        insertCheck.checked = row === targetRow;
+      });
+
+      saveAll();
+    }
+
+    function normalizeInsertPositionState() {
+      const checkedRows = getRows().filter((row) => {
+        const insertCheck = row.querySelector(".insert-check");
+        return insertCheck && insertCheck.checked;
+      });
+
+      if (checkedRows.length <= 1) {
+        return;
+      }
+
+      checkedRows.forEach((row, index) => {
+        if (index === 0) return;
+        row.querySelector(".insert-check").checked = false;
+      });
+    }
+
+    function applySyncFromRowIfNeeded(row) {
+      const rows = getRows();
+      const index = rows.indexOf(row);
+
+      if (index < 0) return;
+
+      const syncCheck = row.querySelector(".sync-check");
+
+      if (index > 0 && syncCheck && syncCheck.checked) {
+        syncRowFromPrevious(row, rows[index - 1]);
+      }
+
+      applySyncFromIndex(index + 1);
+    }
+
     function refreshSyncCheckboxState() {
       const rows = getRows();
 
@@ -737,7 +830,7 @@
         taskName: tr.querySelector(".task-name").value,
         status: tr.querySelector(".btn-status").textContent,
         sync: tr.querySelector(".sync-check").checked,
-        incomplete: tr.querySelector(".incomplete-check").checked,
+        insertPosition: tr.querySelector(".insert-check").checked,
         workMinutesText: tr.querySelector(".work-minutes-input").value
       };
     }
@@ -747,7 +840,7 @@
       tr.querySelector(".end-time").value = data.endTime || "";
       tr.querySelector(".task-name").value = data.taskName || "";
       tr.querySelector(".sync-check").checked = !!data.sync;
-      tr.querySelector(".incomplete-check").checked = !!data.incomplete;
+      tr.querySelector(".insert-check").checked = !!data.insertPosition;
 
       setStatus(tr, data.status || STATUS_TODO);
 
@@ -940,6 +1033,7 @@
       loadTableWidth();
       loadRows();
       refreshSyncCheckboxState();
+      normalizeInsertPositionState();
 
       const rowCount = getRows().length;
       if (rowCount === 0) {
@@ -993,7 +1087,7 @@
     }
 
     function resetColumnWidthsToDefault() {
-      const defaults = ["70px","130px","130px","300px","120px","120px","90px","90px","90px","90px"];
+      const defaults = ["70px","90px","130px","130px","300px","120px","120px","90px","90px","90px"];
       const cols = colGroup.querySelectorAll("col");
 
       cols.forEach((col, index) => {
@@ -1122,7 +1216,7 @@
         "状態",
         "作業時間",
         "同期",
-        "未完了"
+        "挿入位置"
       ];
 
       const rows = getRows().map((tr) => [
@@ -1132,7 +1226,7 @@
         tr.querySelector(".btn-status").textContent || "",
         formatWorkMinutesForOutput(tr.querySelector(".work-minutes-input").value || ""),
         tr.querySelector(".sync-check").checked ? "ON" : "OFF",
-        tr.querySelector(".incomplete-check").checked ? "ON" : "OFF"
+        tr.querySelector(".insert-check").checked ? "ON" : "OFF"
       ]);
 
       const lines = [headers, ...rows].map((row) => row.map(csvEscape).join(","));
@@ -1166,7 +1260,8 @@
     }
 
 
-    const TASK_NOTIFY_INTERVAL_MS = 30 * 1000;
+    const TASK_NOTIFY_INTERVAL_MS = 2 * 60 * 1000;
+    const OVERDUE_NOTIFY_INTERVAL_MS = 30 * 1000;
     const taskNotifyMap = new Map();
 
     function requestNotificationPermission() {
@@ -1224,16 +1319,30 @@
 
         const lastNotifiedAt = taskNotifyMap.get(row) || 0;
 
-        if (nowMs - lastNotifiedAt < TASK_NOTIFY_INTERVAL_MS) {
+        const position = getNowPositionForTask(startValue, endValue, nowMinutes);
+
+        if (position.kind === "inside" && !insideNotifyEnabled) {
           return;
         }
 
-        const position = getNowPositionForTask(startValue, endValue, nowMinutes);
+        if (position.kind === "after" && !overdueNotifyEnabled) {
+          return;
+        }
+
+        const requiredInterval =
+          position.kind === "after"
+            ? OVERDUE_NOTIFY_INTERVAL_MS
+            : TASK_NOTIFY_INTERVAL_MS;
+
+        if (nowMs - lastNotifiedAt < requiredInterval) {
+          return;
+        }
 
         if (position.kind === "inside") {
           showTaskNotification(
             "作業中タスク",
-            `${taskName}\n残り時間：${position.remainingMinutes}分`
+            `${taskName}\n残り時間：${position.remainingMinutes}分`,
+            "inside"
           );
           taskNotifyMap.set(row, nowMs);
           return;
@@ -1242,7 +1351,8 @@
         if (position.kind === "after") {
           showTaskNotification(
             "未完了タスク",
-            `${taskName}\n終了予定を過ぎています。未完了です。`
+            `${taskName}\n終了予定を過ぎています。未完了です。`,
+            "after"
           );
           taskNotifyMap.set(row, nowMs);
         }
@@ -1301,7 +1411,19 @@
       };
     }
 
-    function showTaskNotification(title, body) {
+    function showTaskNotification(title, body, kind) {
+      if (kind === "inside" && !insideNotifyEnabled) {
+        return;
+      }
+
+      if (kind === "after" && !overdueNotifyEnabled) {
+        return;
+      }
+
+      if (Notification.permission !== "granted") {
+        return;
+      }
+
       const notification = new Notification(title, {
         body: body
       });
@@ -1312,6 +1434,22 @@
     }
 
 
+
+    function updateNotificationToggleButtons() {
+      if (insideNotifyToggleBtn) {
+        insideNotifyToggleBtn.textContent = insideNotifyEnabled ? "時間内通知ON" : "時間内通知OFF";
+        insideNotifyToggleBtn.classList.toggle("is-on", insideNotifyEnabled);
+        insideNotifyToggleBtn.classList.toggle("is-off", !insideNotifyEnabled);
+      }
+
+      if (overdueNotifyToggleBtn) {
+        overdueNotifyToggleBtn.textContent = overdueNotifyEnabled ? "時間外通知ON" : "時間外通知OFF";
+        overdueNotifyToggleBtn.classList.toggle("is-on", overdueNotifyEnabled);
+        overdueNotifyToggleBtn.classList.toggle("is-off", !overdueNotifyEnabled);
+      }
+    }
+
+    updateNotificationToggleButtons();
     enableColumnResize();
     enableTableWidthResize();
     loadAll();
