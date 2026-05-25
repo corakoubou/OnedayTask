@@ -30,8 +30,8 @@
       font-family: "Segoe UI", "Meiryo", sans-serif;
     }
 
-    .wrap {
-      max-width: 1600px;
+   .wrap {
+      max-width: 1800px;
       margin: 0 auto;
     }
 
@@ -126,16 +126,17 @@
 
     table {
       width: 100%;
-      min-width: 1200px;
+      min-width: 1590px;
       border-collapse: collapse;
       table-layout: fixed;
     }
 
     thead { background: var(--panel2); }
 
-    th, td {
+    th,
+    td {
       border-bottom: 1px solid var(--line);
-      padding: 10px 8px;
+      padding: 0px 0px;
       text-align: center;
       vertical-align: middle;
     }
@@ -170,6 +171,35 @@
 
     .time-input {
       width: 100%;
+      text-align: center !important;
+      font-family: Consolas, monospace;
+    }
+
+    .date-input {
+      width: 100%;
+      text-align: center !important;
+      font-family: Consolas, monospace;
+    }
+
+
+    .weekday-cell {
+      font-weight: 700;
+      min-width: 32px;
+    }
+
+    .weekday-sun {
+      color: #ff6b6b;
+    }
+
+    .weekday-sat {
+      color: #6fa8ff;
+    }
+
+    .weekday-weekday {
+      color: var(--muted);
+    }
+
+    .task-number-input {
       text-align: center !important;
       font-family: Consolas, monospace;
     }
@@ -271,6 +301,7 @@
       <button id="notifyPermissionBtn" type="button">通知許可</button>
       <button id="insideNotifyToggleBtn" type="button" class="btn-notify-toggle">時間内通知ON</button>
       <button id="overdueNotifyToggleBtn" type="button" class="btn-notify-toggle">時間外通知ON</button>
+      <button id="todoNotifyToggleBtn" type="button" class="btn-notify-toggle">未着手通知ON</button>
     </div>
 
     <div class="table-wrap" id="tableWrap">
@@ -280,8 +311,12 @@
         <colgroup id="taskColGroup">
           <col style="width: 70px;" />
           <col style="width: 90px;" />
+          <col style="width: 40px;" />
           <col style="width: 130px;" />
           <col style="width: 130px;" />
+          <col style="width: 130px;" />
+          <col style="width: 130px;" />
+          <col style="width: 100px;" />
           <col style="width: 300px;" />
           <col style="width: 120px;" />
           <col style="width: 120px;" />
@@ -294,8 +329,12 @@
           <tr>
             <th class="resizable">移動</th>
             <th class="resizable">挿入位置</th>
+            <th class="resizable">曜</th>
+            <th class="resizable">予定開始日</th>
             <th class="resizable">予定開始</th>
+            <th class="resizable">予定終了日</th>
             <th class="resizable">予定終了</th>
+            <th class="resizable">タスク番号</th>
             <th class="resizable">タスク</th>
             <th class="resizable">状態</th>
             <th class="resizable">作業時間</th>
@@ -314,7 +353,8 @@
       ※ 列の右端をドラッグすると、その列の横幅を変更できるっす。<br />
       ※ 表の右上の小さいハンドルを左右ドラッグすると、表全体の横幅を変更できるっす。<br />
       ※ 表データ・列幅・表幅は自動保存するっす。<br />
-      ※ 時間は HH:MM 形式で中央揃えっす。<br />
+      ※ タスク番号列は、同一種類のタスクを管理するための任意入力欄っす。<br />
+      ※ 日付は YYYY-MM-DD 形式、時間は HH:MM 形式で中央揃えっす。開始日の左隣に曜日を1文字で表示するっす。<br />
       ※ フォーカスアウト時の処理順は「作業時間算出 → 同期処理」っす。<br />
       ※ 同期は2行目以降だけ使用でき、新規行はデフォルトでONっす。<br />
       ※ 同期ボタンは全行に対して「作業時間算出 → 同期処理」を実行するっす。<br />
@@ -323,7 +363,7 @@
       ※ 日またぎ対応は有効で、作業時間が15時間を超える場合は0分扱いっす。<br />
       ※ CSV出力では、表の内容を現在の並び順そのままで保存するっす。<br />
       ※ 初期表示と保存データ初期化後は、行が0件の状態になるっす。<br />
-      ※ 時間内通知と時間外通知は、それぞれ個別にON/OFFできるっす。<br />
+      ※ 時間内通知・時間外通知・未着手開始通知は、それぞれ個別にON/OFFできるっす。<br />
       ※ 作業時間欄は数字だけ入力し、右側の「分」は固定表示っす。作業時間を編集すると、予定開始＋作業時間で予定終了を書き換えるっす。<br />
       ※ 10/15/20/30/45/60分ボタンは、挿入位置チェックがあればその下へ、なければ末尾へ指定分数の行を追加するっす。<br />
       ※ 挿入位置チェックは移動列の右側にあり、1か所だけ付けられるっす。<br />
@@ -337,6 +377,7 @@
     const STORAGE_KEY_TABLE_WIDTH = "dailyTaskManager.tableWidth";
     const STORAGE_KEY_INSIDE_NOTIFY_ENABLED = "dailyTaskManager.insideNotifyEnabled";
     const STORAGE_KEY_OVERDUE_NOTIFY_ENABLED = "dailyTaskManager.overdueNotifyEnabled";
+    const STORAGE_KEY_TODO_NOTIFY_ENABLED = "dailyTaskManager.todoNotifyEnabled";
 
     const STATUS_TODO = "未着手";
     const STATUS_DOING = "仕掛";
@@ -352,6 +393,7 @@
     const notifyPermissionBtn = document.getElementById("notifyPermissionBtn");
     const insideNotifyToggleBtn = document.getElementById("insideNotifyToggleBtn");
     const overdueNotifyToggleBtn = document.getElementById("overdueNotifyToggleBtn");
+    const todoNotifyToggleBtn = document.getElementById("todoNotifyToggleBtn");
     const colGroup = document.getElementById("taskColGroup");
     const tableWrap = document.getElementById("tableWrap");
     const tableWidthResizer = document.getElementById("tableWidthResizer");
@@ -359,6 +401,7 @@
     let dragRow = null;
     let insideNotifyEnabled = localStorage.getItem(STORAGE_KEY_INSIDE_NOTIFY_ENABLED) !== "false";
     let overdueNotifyEnabled = localStorage.getItem(STORAGE_KEY_OVERDUE_NOTIFY_ENABLED) !== "false";
+    let todoNotifyEnabled = localStorage.getItem(STORAGE_KEY_TODO_NOTIFY_ENABLED) !== "false";
 
     addTaskBtn.addEventListener("click", () => {
       const insertAfterRow = getInsertPositionRow();
@@ -418,6 +461,12 @@
       updateNotificationToggleButtons();
     });
 
+    todoNotifyToggleBtn.addEventListener("click", () => {
+      todoNotifyEnabled = !todoNotifyEnabled;
+      localStorage.setItem(STORAGE_KEY_TODO_NOTIFY_ENABLED, String(todoNotifyEnabled));
+      updateNotificationToggleButtons();
+    });
+
     notifyPermissionBtn.addEventListener("click", () => {
       requestNotificationPermission();
     });
@@ -428,8 +477,12 @@
       tr.innerHTML = `
         <td><span class="drag-handle" title="ドラッグして移動" tabindex="-1">☰</span></td>
         <td class="insert-cell"><input type="checkbox" class="insert-check" tabindex="-1"></td>
+        <td class="weekday-cell weekday-weekday"></td>
+        <td><input type="text" class="date-input start-date" placeholder="YYYY-MM-DD" maxlength="10" tabindex="0"></td>
         <td><input type="text" class="time-input start-time" placeholder="00:00" maxlength="5" tabindex="0"></td>
+        <td><input type="text" class="date-input end-date" placeholder="YYYY-MM-DD" maxlength="10" tabindex="0"></td>
         <td><input type="text" class="time-input end-time" placeholder="00:00" maxlength="5" tabindex="0"></td>
+        <td><input type="text" class="task-number-input task-number" placeholder="番号" tabindex="0"></td>
         <td><input type="text" class="task-input task-name" placeholder="タスク名" tabindex="0"></td>
         <td><button type="button" class="btn-status status-todo" tabindex="-1">${STATUS_TODO}</button></td>
         <td class="work-minutes-cell" tabindex="-1">
@@ -474,7 +527,9 @@
       const previousRow = insertAfterRow || (rowsBeforeAdd.length > 0 ? rowsBeforeAdd[rowsBeforeAdd.length - 1] : null);
       const newRow = addRow(null, insertAfterRow, true);
 
+      const startDateInput = newRow.querySelector(".start-date");
       const startInput = newRow.querySelector(".start-time");
+      const endDateInput = newRow.querySelector(".end-date");
       const endInput = newRow.querySelector(".end-time");
       const workInput = newRow.querySelector(".work-minutes-input");
       const taskInput = newRow.querySelector(".task-name");
@@ -493,8 +548,17 @@
         startTime = getCurrentTimeString();
       }
 
+      const startDate = previousRow
+        ? (previousRow.querySelector(".end-date").value || getCurrentDateString())
+        : getCurrentDateString();
+
+      const endDateTime = addMinutesToDateTimeString(startDate, startTime, minutes);
+
+      startDateInput.value = startDate;
+      updateStartWeekday(newRow);
       startInput.value = startTime;
-      endInput.value = addMinutesToTimeString(startTime, minutes);
+      endDateInput.value = endDateTime.date;
+      endInput.value = endDateTime.time;
       workInput.value = `${minutes}`;
 
       updateWorkMinutes(newRow);
@@ -513,8 +577,11 @@
 
     function bindRowEvents(tr) {
       const dragHandle = tr.querySelector(".drag-handle");
+      const startDateInput = tr.querySelector(".start-date");
       const startInput = tr.querySelector(".start-time");
+      const endDateInput = tr.querySelector(".end-date");
       const endInput = tr.querySelector(".end-time");
+      const taskNumberInput = tr.querySelector(".task-number");
       const taskInput = tr.querySelector(".task-name");
       const workInput = tr.querySelector(".work-minutes-input");
       const syncCheck = tr.querySelector(".sync-check");
@@ -525,12 +592,27 @@
 
       dragHandle.draggable = true;
 
+      startDateInput.addEventListener("blur", () => {
+        startDateInput.value = normalizeDateInputValue(startDateInput.value);
+        updateStartWeekday(tr);
+        saveAll();
+      });
+
+      endDateInput.addEventListener("blur", () => {
+        endDateInput.value = normalizeDateInputValue(endDateInput.value);
+        saveAll();
+      });
+
       startInput.addEventListener("blur", () => {
         handleTimeBlur(tr, startInput);
       });
 
       endInput.addEventListener("blur", () => {
         handleTimeBlur(tr, endInput);
+      });
+
+      taskNumberInput.addEventListener("input", () => {
+        saveAll();
       });
 
       taskInput.addEventListener("input", () => {
@@ -657,7 +739,9 @@
 
     function handleWorkMinutesBlur(tr, inputElement) {
       const minutes = normalizeWorkMinutesInputValue(inputElement.value);
+      const startDateInput = tr.querySelector(".start-date");
       const startInput = tr.querySelector(".start-time");
+      const endDateInput = tr.querySelector(".end-date");
       const endInput = tr.querySelector(".end-time");
 
       if (minutes === null) {
@@ -669,7 +753,11 @@
       inputElement.value = `${minutes}`;
 
       if (isValidTime(startInput.value)) {
-        endInput.value = addMinutesToTimeString(startInput.value, minutes);
+        const baseDate = isValidDate(startDateInput.value) ? startDateInput.value : getCurrentDateString();
+        const endDateTime = addMinutesToDateTimeString(baseDate, startInput.value, minutes);
+        startDateInput.value = baseDate;
+        endDateInput.value = endDateTime.date;
+        endInput.value = endDateTime.time;
       }
 
       updateWorkMinutes(tr);
@@ -713,22 +801,35 @@
     }
 
     function syncRowFromPrevious(row, previousRow) {
+      const previousEndDate = previousRow.querySelector(".end-date").value;
       const previousEnd = previousRow.querySelector(".end-time").value;
+      const startDateInput = row.querySelector(".start-date");
       const startInput = row.querySelector(".start-time");
+      const endDateInput = row.querySelector(".end-date");
       const endInput = row.querySelector(".end-time");
       const workMinutes = getWorkMinutesValue(row);
 
       if (!isValidTime(previousEnd)) return;
 
+      const baseDate = isValidDate(previousEndDate) ? previousEndDate : getCurrentDateString();
+
       if (workMinutes === null) {
+        startDateInput.value = baseDate;
+        updateStartWeekday(row);
         startInput.value = previousEnd;
+        endDateInput.value = "";
         endInput.value = "";
         updateWorkMinutes(row);
         return;
       }
 
+      const endDateTime = addMinutesToDateTimeString(baseDate, previousEnd, workMinutes);
+
+      startDateInput.value = baseDate;
+      updateStartWeekday(row);
       startInput.value = previousEnd;
-      endInput.value = addMinutesToTimeString(previousEnd, workMinutes);
+      endDateInput.value = endDateTime.date;
+      endInput.value = endDateTime.time;
       updateWorkMinutes(row);
     }
 
@@ -825,8 +926,11 @@
 
     function readRowDataFromElement(tr) {
       return {
+        startDate: tr.querySelector(".start-date").value,
         startTime: tr.querySelector(".start-time").value,
+        endDate: tr.querySelector(".end-date").value,
         endTime: tr.querySelector(".end-time").value,
+        taskNumber: tr.querySelector(".task-number").value,
         taskName: tr.querySelector(".task-name").value,
         status: tr.querySelector(".btn-status").textContent,
         sync: tr.querySelector(".sync-check").checked,
@@ -836,9 +940,13 @@
     }
 
     function applyRowDataToElement(tr, data) {
+      tr.querySelector(".start-date").value = data.startDate || "";
       tr.querySelector(".start-time").value = data.startTime || "";
+      tr.querySelector(".end-date").value = data.endDate || "";
       tr.querySelector(".end-time").value = data.endTime || "";
+      tr.querySelector(".task-number").value = data.taskNumber || "";
       tr.querySelector(".task-name").value = data.taskName || "";
+      updateStartWeekday(tr);
       tr.querySelector(".sync-check").checked = !!data.sync;
       tr.querySelector(".insert-check").checked = !!data.insertPosition;
 
@@ -866,7 +974,9 @@
       }
 
       if (current === STATUS_DOING) {
+        const endDateInput = tr.querySelector(".end-date");
         const endInput = tr.querySelector(".end-time");
+        endDateInput.value = getCurrentDateString();
         endInput.value = getCurrentTimeString();
 
         updateWorkMinutes(tr);
@@ -957,6 +1067,116 @@
       return Math.max(0, minutes);
     }
 
+    function getCurrentDateString() {
+      const now = new Date();
+      return formatDateString(now);
+    }
+
+    function formatDateString(date) {
+      const yyyy = String(date.getFullYear());
+      const mm = String(date.getMonth() + 1).padStart(2, "0");
+      const dd = String(date.getDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    function isValidDate(value) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+
+      const [yyyy, mm, dd] = value.split("-").map(Number);
+      const date = new Date(yyyy, mm - 1, dd);
+
+      return (
+        date.getFullYear() === yyyy &&
+        date.getMonth() === mm - 1 &&
+        date.getDate() === dd
+      );
+    }
+
+    function updateStartWeekday(row) {
+      const startDateInput = row.querySelector(".start-date");
+      const weekdayCell = row.querySelector(".weekday-cell");
+
+      if (!startDateInput || !weekdayCell) return;
+
+      const value = startDateInput.value;
+
+      weekdayCell.textContent = "";
+      weekdayCell.classList.remove("weekday-sun", "weekday-sat", "weekday-weekday");
+
+      if (!isValidDate(value)) {
+        weekdayCell.classList.add("weekday-weekday");
+        return;
+      }
+
+      const [yyyy, mm, dd] = value.split("-").map(Number);
+      const date = new Date(yyyy, mm - 1, dd);
+      const labels = ["日", "月", "火", "水", "木", "金", "土"];
+      const day = date.getDay();
+
+      weekdayCell.textContent = labels[day];
+
+      if (day === 0) {
+        weekdayCell.classList.add("weekday-sun");
+      } else if (day === 6) {
+        weekdayCell.classList.add("weekday-sat");
+      } else {
+        weekdayCell.classList.add("weekday-weekday");
+      }
+    }
+
+    function normalizeDateInputValue(value) {
+      if (!value) return "";
+
+      const digits = String(value).replace(/\D/g, "");
+      if (digits.length === 0) return "";
+
+      const now = new Date();
+      let yyyy = String(now.getFullYear());
+      let mm = "";
+      let dd = "";
+
+      if (digits.length === 8) {
+        yyyy = digits.slice(0, 4);
+        mm = digits.slice(4, 6);
+        dd = digits.slice(6, 8);
+      } else if (digits.length === 4) {
+        mm = digits.slice(0, 2);
+        dd = digits.slice(2, 4);
+      } else {
+        return value;
+      }
+
+      const normalized = `${yyyy}-${mm}-${dd}`;
+      return isValidDate(normalized) ? normalized : "";
+    }
+
+    function dateTimeToDate(dateValue, timeValue) {
+      if (!isValidDate(dateValue) || !isValidTime(timeValue)) return null;
+
+      const [yyyy, mm, dd] = dateValue.split("-").map(Number);
+      const [hh, mi] = timeValue.split(":").map(Number);
+
+      return new Date(yyyy, mm - 1, dd, hh, mi, 0, 0);
+    }
+
+    function addMinutesToDateTimeString(dateValue, timeValue, plusMinutes) {
+      const base = dateTimeToDate(dateValue, timeValue);
+
+      if (!base) {
+        return {
+          date: dateValue,
+          time: addMinutesToTimeString(timeValue, plusMinutes)
+        };
+      }
+
+      base.setMinutes(base.getMinutes() + plusMinutes);
+
+      return {
+        date: formatDateString(base),
+        time: `${String(base.getHours()).padStart(2, "0")}:${String(base.getMinutes()).padStart(2, "0")}`
+      };
+    }
+
     function normalizeTimeInputValue(value) {
       if (!value) return "";
 
@@ -1035,12 +1255,7 @@
       refreshSyncCheckboxState();
       normalizeInsertPositionState();
 
-      const rowCount = getRows().length;
-      if (rowCount === 0) {
-        addRow();
-        refreshSyncCheckboxState();
-        saveAll();
-      }
+      saveAll();
     }
 
     function loadRows() {
@@ -1087,7 +1302,7 @@
     }
 
     function resetColumnWidthsToDefault() {
-      const defaults = ["70px","90px","130px","130px","300px","120px","120px","90px","90px","90px"];
+      const defaults = ["70px","90px","40px","130px","130px","130px","130px","100px","300px","120px","120px","90px","90px","90px"];
       const cols = colGroup.querySelectorAll("col");
 
       cols.forEach((col, index) => {
@@ -1210,8 +1425,12 @@
 
     function exportCsv() {
       const headers = [
+        "予定開始日",
+        "曜日",
         "予定開始",
+        "予定終了日",
         "予定終了",
+        "タスク番号",
         "タスク",
         "状態",
         "作業時間",
@@ -1220,8 +1439,12 @@
       ];
 
       const rows = getRows().map((tr) => [
+        tr.querySelector(".start-date").value || "",
+        tr.querySelector(".weekday-cell").textContent || "",
         tr.querySelector(".start-time").value || "",
+        tr.querySelector(".end-date").value || "",
         tr.querySelector(".end-time").value || "",
+        tr.querySelector(".task-number").value || "",
         tr.querySelector(".task-name").value || "",
         tr.querySelector(".btn-status").textContent || "",
         formatWorkMinutesForOutput(tr.querySelector(".work-minutes-input").value || ""),
@@ -1263,6 +1486,7 @@
     const TASK_NOTIFY_INTERVAL_MS = 2 * 60 * 1000;
     const OVERDUE_NOTIFY_INTERVAL_MS = 30 * 1000;
     const taskNotifyMap = new Map();
+    const todoStartNotifyMap = new Map();
 
     function requestNotificationPermission() {
       if (!("Notification" in window)) {
@@ -1304,14 +1528,25 @@
       getRows().forEach((row, index) => {
         const status = row.querySelector(".btn-status").textContent;
 
-        if (status !== STATUS_DOING) {
+        const startDateValue = row.querySelector(".start-date").value;
+        const startValue = row.querySelector(".start-time").value;
+        const endDateValue = row.querySelector(".end-date").value;
+        const endValue = row.querySelector(".end-time").value;
+        const taskName = row.querySelector(".task-name").value.trim() || `タスク${index + 1}`;
+
+        if (status === STATUS_TODO) {
           taskNotifyMap.delete(row);
+          notifyTodoStartIfNeeded(row, taskName, startDateValue, startValue);
           return;
         }
 
-        const startValue = row.querySelector(".start-time").value;
-        const endValue = row.querySelector(".end-time").value;
-        const taskName = row.querySelector(".task-name").value.trim() || `タスク${index + 1}`;
+        if (status !== STATUS_DOING) {
+          taskNotifyMap.delete(row);
+          todoStartNotifyMap.delete(row);
+          return;
+        }
+
+        todoStartNotifyMap.delete(row);
 
         if (!isValidTime(startValue) || !isValidTime(endValue)) {
           return;
@@ -1319,15 +1554,7 @@
 
         const lastNotifiedAt = taskNotifyMap.get(row) || 0;
 
-        const position = getNowPositionForTask(startValue, endValue, nowMinutes);
-
-        if (position.kind === "inside" && !insideNotifyEnabled) {
-          return;
-        }
-
-        if (position.kind === "after" && !overdueNotifyEnabled) {
-          return;
-        }
+        const position = getNowPositionForTask(startDateValue, startValue, endDateValue, endValue, nowMinutes);
 
         const requiredInterval =
           position.kind === "after"
@@ -1337,6 +1564,7 @@
         if (nowMs - lastNotifiedAt < requiredInterval) {
           return;
         }
+
 
         if (position.kind === "inside") {
           showTaskNotification(
@@ -1359,7 +1587,32 @@
       });
     }
 
-    function getNowPositionForTask(startValue, endValue, nowMinutes) {
+    function getNowPositionForTask(startDateValue, startValue, endDateValue, endValue, nowMinutes) {
+      const now = new Date();
+      const startDateTime = dateTimeToDate(startDateValue, startValue);
+      const endDateTime = dateTimeToDate(endDateValue, endValue);
+
+      if (startDateTime && endDateTime) {
+        if (now >= startDateTime && now <= endDateTime) {
+          return {
+            kind: "inside",
+            remainingMinutes: Math.max(0, Math.ceil((endDateTime - now) / 60000))
+          };
+        }
+
+        if (now > endDateTime) {
+          return {
+            kind: "after",
+            remainingMinutes: 0
+          };
+        }
+
+        return {
+          kind: "before",
+          remainingMinutes: Math.max(0, Math.ceil((endDateTime - startDateTime) / 60000))
+        };
+      }
+
       const startMinutes = timeStringToMinutes(startValue);
       const endMinutes = timeStringToMinutes(endValue);
 
@@ -1384,7 +1637,6 @@
         };
       }
 
-      // 日またぎ: 例 23:00 -> 01:00
       if (nowMinutes >= startMinutes || nowMinutes <= endMinutes) {
         const remainingMinutes =
           nowMinutes >= startMinutes
@@ -1397,7 +1649,6 @@
         };
       }
 
-      // 日またぎ予定で、現在時刻が終了後〜開始前の間にある場合は終了後扱い
       if (nowMinutes > endMinutes && nowMinutes < startMinutes) {
         return {
           kind: "after",
@@ -1409,6 +1660,33 @@
         kind: "before",
         remainingMinutes: 0
       };
+    }
+
+    function notifyTodoStartIfNeeded(row, taskName, startDateValue, startValue) {
+      if (!todoNotifyEnabled) return;
+      if (!isValidDate(startDateValue) || !isValidTime(startValue)) return;
+
+      const startDateTime = dateTimeToDate(startDateValue, startValue);
+      const now = new Date();
+
+      if (!startDateTime || now < startDateTime) {
+        return;
+      }
+
+      const notifiedKey = `${startDateValue} ${startValue}`;
+      const lastKey = todoStartNotifyMap.get(row);
+
+      if (lastKey === notifiedKey) {
+        return;
+      }
+
+      showTaskNotification(
+        "開始予定タスク",
+        `${taskName}\n開始予定時刻になりました。`,
+        "inside"
+      );
+
+      todoStartNotifyMap.set(row, notifiedKey);
     }
 
     function showTaskNotification(title, body, kind) {
@@ -1446,6 +1724,12 @@
         overdueNotifyToggleBtn.textContent = overdueNotifyEnabled ? "時間外通知ON" : "時間外通知OFF";
         overdueNotifyToggleBtn.classList.toggle("is-on", overdueNotifyEnabled);
         overdueNotifyToggleBtn.classList.toggle("is-off", !overdueNotifyEnabled);
+      }
+
+      if (todoNotifyToggleBtn) {
+        todoNotifyToggleBtn.textContent = todoNotifyEnabled ? "未着手通知ON" : "未着手通知OFF";
+        todoNotifyToggleBtn.classList.toggle("is-on", todoNotifyEnabled);
+        todoNotifyToggleBtn.classList.toggle("is-off", !todoNotifyEnabled);
       }
     }
 
