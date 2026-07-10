@@ -187,22 +187,30 @@
       min-width: 32px;
     }
 
-    .weekday-sun {
-      color: #ff6b6b;
-    }
-
-    .weekday-sat {
-      color: #6fa8ff;
-    }
-
-    .weekday-weekday {
-      color: var(--muted);
-    }
+    .weekday-sun { color: #ff6b6b; }
+    .weekday-mon { color: #ffd166; }
+    .weekday-tue { color: #6ee7b7; }
+    .weekday-wed { color: #7dd3fc; }
+    .weekday-thu { color: #a78bfa; }
+    .weekday-fri { color: #f0abfc; }
+    .weekday-sat { color: #6fa8ff; }
 
     .task-number-input {
       text-align: center !important;
       font-family: Consolas, monospace;
+      border-width: 2px;
     }
+
+    .task-number-color-0 { background: #3b2f2f !important; }
+    .task-number-color-1 { background: #2f3b30 !important; }
+    .task-number-color-2 { background: #2f353b !important; }
+    .task-number-color-3 { background: #3b2f3a !important; }
+    .task-number-color-4 { background: #3b392f !important; }
+    .task-number-color-5 { background: #2f3b3a !important; }
+    .task-number-color-6 { background: #332f3b !important; }
+    .task-number-color-7 { background: #3b332f !important; }
+    .task-number-color-8 { background: #2f323b !important; }
+    .task-number-color-9 { background: #3a3b2f !important; }
 
     .task-input {
       width: 100%;
@@ -257,6 +265,66 @@
     .sync-cell input:disabled {
       cursor: not-allowed;
       opacity: 0.45;
+    }
+
+
+    .task-detail-panel {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 50vh;
+      display: none;
+      flex-direction: column;
+      background: var(--panel);
+      border-top: 2px solid var(--accent);
+      z-index: 1000;
+      box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
+    }
+
+    .task-detail-panel.is-open {
+      display: flex;
+    }
+
+    .task-detail-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: var(--panel2);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .task-detail-title {
+      flex: 1;
+      min-width: 0;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .task-detail-close {
+      background: var(--danger);
+    }
+
+    .task-detail-textarea {
+      flex: 1;
+      width: 100%;
+      min-height: 0;
+      resize: none;
+      border: none;
+      outline: none;
+      padding: 14px;
+      background: #181820;
+      color: var(--text);
+      font-family: "Segoe UI", "Meiryo", sans-serif;
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    body.detail-panel-open {
+      padding-bottom: calc(50vh + 20px);
     }
 
     .hint {
@@ -353,8 +421,9 @@
       ※ 列の右端をドラッグすると、その列の横幅を変更できるっす。<br />
       ※ 表の右上の小さいハンドルを左右ドラッグすると、表全体の横幅を変更できるっす。<br />
       ※ 表データ・列幅・表幅は自動保存するっす。<br />
-      ※ タスク番号列は、同一種類のタスクを管理するための任意入力欄っす。<br />
-      ※ 日付は YYYY-MM-DD 形式、時間は HH:MM 形式で中央揃えっす。開始日の左隣に曜日を1文字で表示するっす。<br />
+      ※ タスク番号列は、同一種類のタスクを管理するための任意入力欄っす。同じ番号は同じ色で表示するっす。<br />
+      ※ タスク名をクリックすると、画面下半分にその行専用の詳細入力欄が開くっす。<br />
+      ※ 日付は YYYY-MM-DD 形式、時間は HH:MM 形式で中央揃えっす。開始日の左隣に曜日を1文字・曜日ごとに色違いで表示するっす。<br />
       ※ フォーカスアウト時の処理順は「作業時間算出 → 同期処理」っす。<br />
       ※ 同期は2行目以降だけ使用でき、新規行はデフォルトでONっす。<br />
       ※ 同期ボタンは全行に対して「作業時間算出 → 同期処理」を実行するっす。<br />
@@ -368,6 +437,18 @@
       ※ 10/15/20/30/45/60分ボタンは、挿入位置チェックがあればその下へ、なければ末尾へ指定分数の行を追加するっす。<br />
       ※ 挿入位置チェックは移動列の右側にあり、1か所だけ付けられるっす。<br />
       ※ テスト用に、仕掛中タスクは30秒ごとにWindows通知するっす。
+    </div>
+
+    <div id="taskDetailPanel" class="task-detail-panel">
+      <div class="task-detail-header">
+        <div id="taskDetailTitle" class="task-detail-title">タスク詳細</div>
+        <button id="taskDetailCloseBtn" type="button" class="task-detail-close">閉じる</button>
+      </div>
+      <textarea
+        id="taskDetailTextarea"
+        class="task-detail-textarea"
+        placeholder="このタスクの詳細を入力"
+      ></textarea>
     </div>
   </div>
 
@@ -397,11 +478,16 @@
     const colGroup = document.getElementById("taskColGroup");
     const tableWrap = document.getElementById("tableWrap");
     const tableWidthResizer = document.getElementById("tableWidthResizer");
+    const taskDetailPanel = document.getElementById("taskDetailPanel");
+    const taskDetailTitle = document.getElementById("taskDetailTitle");
+    const taskDetailTextarea = document.getElementById("taskDetailTextarea");
+    const taskDetailCloseBtn = document.getElementById("taskDetailCloseBtn");
 
     let dragRow = null;
     let insideNotifyEnabled = localStorage.getItem(STORAGE_KEY_INSIDE_NOTIFY_ENABLED) !== "false";
     let overdueNotifyEnabled = localStorage.getItem(STORAGE_KEY_OVERDUE_NOTIFY_ENABLED) !== "false";
     let todoNotifyEnabled = localStorage.getItem(STORAGE_KEY_TODO_NOTIFY_ENABLED) !== "false";
+    let activeDetailRow = null;
 
     addTaskBtn.addEventListener("click", () => {
       const insertAfterRow = getInsertPositionRow();
@@ -469,6 +555,36 @@
 
     notifyPermissionBtn.addEventListener("click", () => {
       requestNotificationPermission();
+    });
+
+    taskDetailCloseBtn.addEventListener("click", () => {
+      closeTaskDetailPanel();
+    });
+
+    taskDetailTextarea.addEventListener("input", () => {
+      if (!activeDetailRow) {
+        return;
+      }
+
+      activeDetailRow.dataset.taskDetail = taskDetailTextarea.value;
+      saveAll();
+    });
+
+    document.addEventListener("click", (event) => {
+      if (!taskDetailPanel.classList.contains("is-open")) {
+        return;
+      }
+
+      const clickedTaskInput = event.target.closest(".task-name");
+      if (clickedTaskInput) {
+        return;
+      }
+
+      if (taskDetailPanel.contains(event.target)) {
+        return;
+      }
+
+      closeTaskDetailPanel();
     });
 
     function addRow(data = null, insertAfterRow = null, isNewlyCreated = false) {
@@ -612,11 +728,24 @@
       });
 
       taskNumberInput.addEventListener("input", () => {
+        updateTaskNumberColor(tr);
         saveAll();
       });
 
       taskInput.addEventListener("input", () => {
+        if (activeDetailRow === tr) {
+          updateTaskDetailPanelTitle(tr);
+        }
+
         saveAll();
+      });
+
+      taskInput.addEventListener("click", () => {
+        openTaskDetailPanel(tr);
+      });
+
+      taskInput.addEventListener("focus", () => {
+        openTaskDetailPanel(tr);
       });
 
       workInput.addEventListener("blur", () => {
@@ -654,6 +783,10 @@
       });
 
       deleteBtn.addEventListener("click", () => {
+        if (activeDetailRow === tr) {
+          closeTaskDetailPanel();
+        }
+
         tr.remove();
         refreshSyncCheckboxState();
         saveAll();
@@ -833,6 +966,38 @@
       updateWorkMinutes(row);
     }
 
+    function openTaskDetailPanel(row) {
+      activeDetailRow = row;
+
+      updateTaskDetailPanelTitle(row);
+      taskDetailTextarea.value = row.dataset.taskDetail || "";
+
+      taskDetailPanel.classList.add("is-open");
+      document.body.classList.add("detail-panel-open");
+    }
+
+    function closeTaskDetailPanel() {
+      activeDetailRow = null;
+      taskDetailTextarea.value = "";
+      taskDetailPanel.classList.remove("is-open");
+      document.body.classList.remove("detail-panel-open");
+    }
+
+    function updateTaskDetailPanelTitle(row) {
+      const taskNumber = row.querySelector(".task-number").value.trim();
+      const taskName = row.querySelector(".task-name").value.trim();
+
+      const parts = [];
+
+      if (taskNumber) {
+        parts.push(`番号：${taskNumber}`);
+      }
+
+      parts.push(taskName || "名称未入力のタスク");
+
+      taskDetailTitle.textContent = parts.join(" / ");
+    }
+
     function getRows() {
       return [...tableBody.querySelectorAll("tr")];
     }
@@ -932,6 +1097,7 @@
         endTime: tr.querySelector(".end-time").value,
         taskNumber: tr.querySelector(".task-number").value,
         taskName: tr.querySelector(".task-name").value,
+        taskDetail: tr.dataset.taskDetail || "",
         status: tr.querySelector(".btn-status").textContent,
         sync: tr.querySelector(".sync-check").checked,
         insertPosition: tr.querySelector(".insert-check").checked,
@@ -946,6 +1112,8 @@
       tr.querySelector(".end-time").value = data.endTime || "";
       tr.querySelector(".task-number").value = data.taskNumber || "";
       tr.querySelector(".task-name").value = data.taskName || "";
+      tr.dataset.taskDetail = data.taskDetail || "";
+      updateTaskNumberColor(tr);
       updateStartWeekday(tr);
       tr.querySelector(".sync-check").checked = !!data.sync;
       tr.querySelector(".insert-check").checked = !!data.insertPosition;
@@ -1092,6 +1260,40 @@
       );
     }
 
+    function updateTaskNumberColor(row) {
+      const input = row.querySelector(".task-number");
+      if (!input) return;
+
+      input.classList.remove(
+        "task-number-color-0",
+        "task-number-color-1",
+        "task-number-color-2",
+        "task-number-color-3",
+        "task-number-color-4",
+        "task-number-color-5",
+        "task-number-color-6",
+        "task-number-color-7",
+        "task-number-color-8",
+        "task-number-color-9"
+      );
+
+      const value = input.value.trim();
+      if (!value) return;
+
+      const index = getTaskNumberColorIndex(value);
+      input.classList.add(`task-number-color-${index}`);
+    }
+
+    function getTaskNumberColorIndex(value) {
+      let hash = 0;
+
+      for (let i = 0; i < value.length; i += 1) {
+        hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+      }
+
+      return hash % 10;
+    }
+
     function updateStartWeekday(row) {
       const startDateInput = row.querySelector(".start-date");
       const weekdayCell = row.querySelector(".weekday-cell");
@@ -1101,10 +1303,17 @@
       const value = startDateInput.value;
 
       weekdayCell.textContent = "";
-      weekdayCell.classList.remove("weekday-sun", "weekday-sat", "weekday-weekday");
+      weekdayCell.classList.remove(
+        "weekday-sun",
+        "weekday-mon",
+        "weekday-tue",
+        "weekday-wed",
+        "weekday-thu",
+        "weekday-fri",
+        "weekday-sat"
+      );
 
       if (!isValidDate(value)) {
-        weekdayCell.classList.add("weekday-weekday");
         return;
       }
 
@@ -1115,13 +1324,17 @@
 
       weekdayCell.textContent = labels[day];
 
-      if (day === 0) {
-        weekdayCell.classList.add("weekday-sun");
-      } else if (day === 6) {
-        weekdayCell.classList.add("weekday-sat");
-      } else {
-        weekdayCell.classList.add("weekday-weekday");
-      }
+      const classNames = [
+        "weekday-sun",
+        "weekday-mon",
+        "weekday-tue",
+        "weekday-wed",
+        "weekday-thu",
+        "weekday-fri",
+        "weekday-sat"
+      ];
+
+      weekdayCell.classList.add(classNames[day]);
     }
 
     function normalizeDateInputValue(value) {
