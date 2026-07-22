@@ -91,6 +91,63 @@
     .status-todo { background: #6c757d; }
     .status-doing { background: var(--warning); color: #222; }
     .status-done { background: var(--success); }
+    .status-done-adjusted { background: #2f7d3d; }
+
+
+    .status-choice-modal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: rgba(0, 0, 0, 0.58);
+      z-index: 3000;
+    }
+
+    .status-choice-modal.is-open {
+      display: flex;
+    }
+
+    .status-choice-dialog {
+      width: min(440px, 100%);
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel);
+      box-shadow: 0 16px 44px rgba(0, 0, 0, 0.45);
+    }
+
+    .status-choice-title {
+      margin: 0 0 10px;
+      font-size: 19px;
+      font-weight: 700;
+    }
+
+    .status-choice-message {
+      margin: 0 0 18px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .status-choice-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn-status-reset {
+      background: #6c757d;
+    }
+
+    .btn-status-adjust {
+      background: #2f7d3d;
+    }
+
+    .btn-status-cancel {
+      background: #555563;
+    }
 
     .table-wrap {
       position: relative;
@@ -268,14 +325,6 @@
     }
 
 
-    tr.auto-generated-row td {
-      box-shadow: inset 0 0 0 1px rgba(105, 155, 255, 0.48);
-    }
-
-    tr.auto-generated-row .task-name {
-      font-weight: 700;
-    }
-
     .task-detail-panel {
       position: fixed;
       left: 0;
@@ -357,7 +406,14 @@
 
     .col-resizer:hover { background: rgba(74, 144, 226, 0.35); }
     .col-resizer.active { background: rgba(74, 144, 226, 0.55); }
-  </style>
+  
+
+    .sync-overlap{
+      background:#7a2020 !important;
+      color:#fff !important;
+    }
+
+</style>
 </head>
 <body>
   <div class="wrap">
@@ -376,7 +432,6 @@
       <button id="exportCsvBtn" type="button" class="btn-csv">CSV出力</button>
       <button id="notifyPermissionBtn" type="button">通知許可</button>
       <button id="toggleDetailPanelBtn" type="button">詳細：表示</button>
-      <button id="scheduleRecalcBtn" type="button">スケジュール再計算</button>
       <button id="insideNotifyToggleBtn" type="button" class="btn-notify-toggle">時間内通知ON</button>
       <button id="overdueNotifyToggleBtn" type="button" class="btn-notify-toggle">時間外通知ON</button>
       <button id="todoNotifyToggleBtn" type="button" class="btn-notify-toggle">未着手通知ON</button>
@@ -433,13 +488,12 @@
       ※ 表データ・列幅・表幅は自動保存するっす。<br />
       ※ タスク番号列は、同一種類のタスクを管理するための任意入力欄っす。同じ番号は同じ色で表示するっす。<br />
       ※ タスク名をクリックすると、画面下半分にその行専用の詳細入力欄が開くっす。<br />
-      ※ 表内テキストボックスのフォーカス解除で、同期整列・超過行生成・終了時刻調整・全作業時間再計算を実行するっす。その後、タスク名をブラーした場合は、同じ一致IDを持つ全行のタスク名を最後に編集した内容へ揃えるっす。<br />
       ※ 日付は YYYY-MM-DD 形式、時間は HH:MM 形式で中央揃えっす。開始日の左隣に曜日を1文字・曜日ごとに色違いで表示するっす。<br />
       ※ フォーカスアウト時の処理順は「作業時間算出 → 同期処理」っす。<br />
       ※ 同期は2行目以降だけ使用でき、新規行はデフォルトでONっす。<br />
       ※ 同期ボタンは全行に対して「作業時間算出 → 同期処理」を実行するっす。<br />
       ※ Tab移動は 予定開始 → 予定終了 → タスク → 次の行 の順っす。<br />
-      ※ 状態を完了にすると、その行の予定終了は実時間に更新され、後続同期行へ連鎖反映するっす。<br />
+      ※ 「仕掛 → 完了」では確認後に状態だけ変更し、時刻は変更しないっす。「完了」を押すと「未着手に戻す／完了調整にする」を選択でき、完了調整を選んだ場合だけ再確認後に予定終了を現在時刻へ更新し、後続同期行へ連鎖反映するっす。<br />
       ※ 日またぎ対応は有効で、作業時間が15時間を超える場合は0分扱いっす。<br />
       ※ CSV出力では、表の内容を現在の並び順そのままで保存するっす。<br />
       ※ 初期表示と保存データ初期化後は、行が0件の状態になるっす。<br />
@@ -463,6 +517,21 @@
     </div>
   </div>
 
+
+  <div id="statusChoiceModal" class="status-choice-modal" aria-hidden="true">
+    <div class="status-choice-dialog" role="dialog" aria-modal="true" aria-labelledby="statusChoiceTitle">
+      <h2 id="statusChoiceTitle" class="status-choice-title">完了後の状態を選択</h2>
+      <p class="status-choice-message">
+        このタスクを「未着手」に戻すか、現在時刻を反映する「完了調整」にするか選択してください。
+      </p>
+      <div class="status-choice-actions">
+        <button id="statusChoiceAdjustBtn" type="button" class="btn-status-adjust">完了調整にする</button>
+        <button id="statusChoiceResetBtn" type="button" class="btn-status-reset">未着手にする</button>
+        <button id="statusChoiceCancelBtn" type="button" class="btn-status-cancel">キャンセル</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const STORAGE_KEY_ROWS = "dailyTaskManager.rows";
     const STORAGE_KEY_COL_WIDTHS = "dailyTaskManager.colWidths";
@@ -474,6 +543,7 @@
     const STATUS_TODO = "未着手";
     const STATUS_DOING = "仕掛";
     const STATUS_DONE = "完了";
+    const STATUS_DONE_ADJUSTED = "完了調整";
 
     const table = document.getElementById("taskTable");
     const tableBody = document.getElementById("taskTableBody");
@@ -494,7 +564,12 @@
     const taskDetailTextarea = document.getElementById("taskDetailTextarea");
     const taskDetailCloseBtn = document.getElementById("taskDetailCloseBtn");
     const toggleDetailPanelBtn = document.getElementById("toggleDetailPanelBtn");
-    const scheduleRecalcBtn = document.getElementById("scheduleRecalcBtn");
+
+    const statusChoiceModal = document.getElementById("statusChoiceModal");
+    const statusChoiceResetBtn = document.getElementById("statusChoiceResetBtn");
+    const statusChoiceAdjustBtn = document.getElementById("statusChoiceAdjustBtn");
+    const statusChoiceCancelBtn = document.getElementById("statusChoiceCancelBtn");
+
 
     let dragRow = null;
     let insideNotifyEnabled = localStorage.getItem(STORAGE_KEY_INSIDE_NOTIFY_ENABLED) !== "false";
@@ -502,8 +577,7 @@
     let todoNotifyEnabled = localStorage.getItem(STORAGE_KEY_TODO_NOTIFY_ENABLED) !== "false";
     let activeDetailRow = null;
     let detailPanelEnabled = true;
-    let scheduleRecalculating = false;
-    let lastBlurredMatchedTask = null;
+    let statusChoiceTargetRow = null;
 
     addTaskBtn.addEventListener("click", () => {
       const insertAfterRow = getInsertPositionRow();
@@ -583,35 +657,33 @@
       if(!detailPanelEnabled) closeTaskDetailPanel();
     });
 
-    scheduleRecalcBtn.addEventListener("click", () => {
-      runScheduleRecalculation();
+
+    statusChoiceResetBtn.addEventListener("click", () => {
+      if (!statusChoiceTargetRow) return;
+      setStatus(statusChoiceTargetRow, STATUS_TODO);
+      closeStatusChoiceDialog();
+      saveAll();
     });
 
-    document.addEventListener("focusout", (event) => {
-      const target = event.target;
+    statusChoiceAdjustBtn.addEventListener("click", () => {
+      if (!statusChoiceTargetRow) return;
 
-      if (!(target instanceof HTMLInputElement) || target.type !== "text") {
-        return;
+      const targetRow = statusChoiceTargetRow;
+      const ok = confirm("時刻が変わってしまいますがよいですか？");
+      if (!ok) return;
+
+      closeStatusChoiceDialog();
+      applyDoneAdjustment(targetRow);
+    });
+
+    statusChoiceCancelBtn.addEventListener("click", () => {
+      closeStatusChoiceDialog();
+    });
+
+    statusChoiceModal.addEventListener("click", (event) => {
+      if (event.target === statusChoiceModal) {
+        closeStatusChoiceDialog();
       }
-
-      const targetRow = target.closest("#taskTable tbody tr");
-
-      if (!targetRow) {
-        return;
-      }
-
-      // 一致IDで揃える対象はタスク名。
-      // 再計算で行や時刻が変化しても失われないよう、ブラー時点の値を退避する。
-      if (target.classList.contains("task-name") && targetRow.dataset.matchId) {
-        lastBlurredMatchedTask = {
-          matchId: targetRow.dataset.matchId,
-          taskName: target.value
-        };
-      }
-
-      setTimeout(() => {
-        runScheduleRecalculation();
-      }, 0);
     });
 
     taskDetailTextarea.addEventListener("input", () => {
@@ -642,9 +714,6 @@
 
     function addRow(data = null, insertAfterRow = null, isNewlyCreated = false) {
       const tr = document.createElement("tr");
-      tr.dataset.autoGenerated = data && data.autoGenerated ? "true" : "";
-      tr.dataset.overflowSourceKey = data && data.overflowSourceKey ? data.overflowSourceKey : "";
-      tr.dataset.matchId = data && data.matchId ? data.matchId : "";
 
       tr.innerHTML = `
         <td><span class="drag-handle" title="ドラッグして移動" tabindex="-1">☰</span></td>
@@ -687,12 +756,6 @@
         const syncCheck = tr.querySelector(".sync-check");
         syncCheck.checked = !!isNewlyCreated;
         updateWorkMinutes(tr);
-      }
-
-      tr.classList.toggle("auto-generated-row", tr.dataset.autoGenerated === "true");
-
-      if (tr.dataset.autoGenerated === "true") {
-        tr.title = "同期ありタスクの超過時間から自動生成された行";
       }
 
       refreshSyncCheckboxState();
@@ -770,6 +833,13 @@
 
       dragHandle.draggable = true;
 
+      statusBtn.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        cycleStatus(tr);
+      });
+
+
       startDateInput.addEventListener("blur", () => {
         startDateInput.value = normalizeDateInputValue(startDateInput.value);
         updateStartWeekday(tr);
@@ -801,7 +871,6 @@
 
         saveAll();
       });
-
 
       taskInput.addEventListener("click", () => {
         openTaskDetailPanel(tr);
@@ -839,10 +908,6 @@
         } else {
           saveAll();
         }
-      });
-
-      statusBtn.addEventListener("click", () => {
-        cycleStatus(tr);
       });
 
       deleteBtn.addEventListener("click", () => {
@@ -1062,271 +1127,6 @@
       taskDetailTitle.textContent = parts.join(" / ");
     }
 
-    function runScheduleRecalculation() {
-      if (scheduleRecalculating) {
-        return;
-      }
-
-      scheduleRecalculating = true;
-
-      try {
-        // 1. Synchronize checked rows from top to bottom.
-        applySyncFromIndex(1);
-
-        // 2. Find a sync-off row whose preceding row is sync-on and overlaps it.
-        generateMissingOverflowRows();
-
-        // 3. Adjust sync row end time before sync-off rows.
-        trimSyncRowsBeforeUnsynced();
-
-        // 4. Rewrite every work duration from its final start/end date and time.
-        recalculateAllWorkMinutes();
-
-        // 5. After every calculation is complete, make task names with
-        //    the same match ID equal to the last blurred task name.
-        synchronizeMatchedTaskNamesAfterRecalculation();
-
-        refreshSyncCheckboxState();
-        saveAll();
-      } finally {
-        scheduleRecalculating = false;
-      }
-    }
-
-    function generateMissingOverflowRows() {
-      const baseRows = getRows().filter((row) => row.dataset.autoGenerated !== "true");
-
-      for (let index = 1; index < baseRows.length; index += 1) {
-        const currentRow = baseRows[index];
-        const previousRow = baseRows[index - 1];
-        const currentSync = currentRow.querySelector(".sync-check");
-        const previousSync = previousRow.querySelector(".sync-check");
-
-        if (!currentSync || currentSync.checked) {
-          continue;
-        }
-
-        if (!previousSync || !previousSync.checked) {
-          continue;
-        }
-
-        const previousEnd = getRowDateTime(previousRow, "end");
-        const currentStart = getRowDateTime(currentRow, "start");
-
-        if (!previousEnd || !currentStart) {
-          continue;
-        }
-
-        const overflowMinutes = Math.floor(
-          (previousEnd.getTime() - currentStart.getTime()) / 60000
-        );
-
-        // Zero and negative values are not targets.
-        if (overflowMinutes < 1) {
-          continue;
-        }
-
-        const sourceKey = makeOverflowSourceKey(previousRow, currentRow);
-        const alreadyGenerated = getRows()
-          .filter((row) => row.dataset.autoGenerated === "true")
-          .filter((row) => row.dataset.overflowSourceKey === sourceKey)
-          .reduce((total, row) => total + getRowDurationMinutes(row), 0);
-
-        let remainingMinutes = overflowMinutes - alreadyGenerated;
-
-        if (remainingMinutes < 1) {
-          continue;
-        }
-
-        // 超過タスク生成時に、元行と生成先へ同じ一致IDを付ける。
-        let matchId = previousRow.dataset.matchId || "";
-
-        if (!matchId) {
-          matchId = createMatchId();
-          previousRow.dataset.matchId = matchId;
-        }
-
-        const sourceData = readRowDataFromElement(previousRow);
-        sourceData.autoGenerated = true;
-        sourceData.overflowSourceKey = sourceKey;
-        sourceData.matchId = matchId;
-        sourceData.sync = true;
-        sourceData.insertPosition = false;
-
-        // Determine the consecutive sync-off block beginning at currentRow.
-        let blockEndIndex = index;
-
-        while (
-          blockEndIndex + 1 < baseRows.length &&
-          !baseRows[blockEndIndex + 1].querySelector(".sync-check").checked
-        ) {
-          blockEndIndex += 1;
-        }
-
-        let insertionAnchor = currentRow;
-
-        // If sync-off rows continue, use the free gaps between them in order.
-        for (
-          let gapIndex = index;
-          gapIndex < blockEndIndex && remainingMinutes > 0;
-          gapIndex += 1
-        ) {
-          const leftRow = baseRows[gapIndex];
-          const rightRow = baseRows[gapIndex + 1];
-          const gapStart = getRowDateTime(leftRow, "end");
-          const gapEnd = getRowDateTime(rightRow, "start");
-
-          if (!gapStart || !gapEnd || gapEnd <= gapStart) {
-            insertionAnchor = leftRow;
-            continue;
-          }
-
-          const availableMinutes = Math.floor(
-            (gapEnd.getTime() - gapStart.getTime()) / 60000
-          );
-
-          if (availableMinutes < 1) {
-            insertionAnchor = leftRow;
-            continue;
-          }
-
-          const insertedMinutes = Math.min(remainingMinutes, availableMinutes);
-          insertionAnchor = createOverflowRow(
-            sourceData,
-            insertionAnchor,
-            gapStart,
-            insertedMinutes
-          );
-          remainingMinutes -= insertedMinutes;
-        }
-
-        // If no consecutive sync-off gap exists, or some time remains,
-        // append it directly below the final sync-off record in the block.
-        if (remainingMinutes > 0) {
-          const lastSyncOffRow = baseRows[blockEndIndex];
-          const appendStart = getRowDateTime(lastSyncOffRow, "end");
-
-          if (appendStart) {
-            createOverflowRow(
-              sourceData,
-              lastSyncOffRow,
-              appendStart,
-              remainingMinutes
-            );
-          }
-        }
-      }
-    }
-
-    function createOverflowRow(sourceData, insertAfterRow, startDateTime, minutes) {
-      const endDateTime = new Date(startDateTime.getTime() + minutes * 60000);
-      const generatedData = {
-        ...sourceData,
-        autoGenerated: true,
-        startDate: formatScheduleDate(startDateTime),
-        startTime: formatScheduleTime(startDateTime),
-        endDate: formatScheduleDate(endDateTime),
-        endTime: formatScheduleTime(endDateTime),
-        workMinutesText: String(minutes),
-        sync: true,
-        insertPosition: false
-      };
-
-      const generatedRow = addRow(generatedData, insertAfterRow, false);
-      generatedRow.dataset.autoGenerated = "true";
-      generatedRow.dataset.overflowSourceKey = sourceData.overflowSourceKey;
-      generatedRow.dataset.matchId = sourceData.matchId || "";
-      generatedRow.classList.add("auto-generated-row");
-      generatedRow.title = "同期ありタスクの超過時間から自動生成された行";
-
-      return generatedRow;
-    }
-
-
-    function trimSyncRowsBeforeUnsynced() {
-      const baseRows=getRows().filter(r=>r.dataset.autoGenerated!=="true");
-      for(let i=1;i<baseRows.length;i++){
-        const cur=baseRows[i];
-        const prev=baseRows[i-1];
-        const curSync=cur.querySelector(".sync-check");
-        const prevSync=prev.querySelector(".sync-check");
-        if(!curSync||curSync.checked) continue;
-        if(!prevSync||!prevSync.checked) continue;
-
-        const currentStart=getRowDateTime(cur,"start");
-        const previousEnd=getRowDateTime(prev,"end");
-
-        if(!currentStart||!previousEnd) continue;
-        if(previousEnd<=currentStart) continue;
-
-        prev.querySelector(".end-date").value=cur.querySelector(".start-date").value;
-        prev.querySelector(".end-time").value=cur.querySelector(".start-time").value;
-      }
-    }
-
-    function recalculateAllWorkMinutes() {
-      getRows().forEach((row) => {
-        const minutes = getRowDurationMinutes(row);
-        const workInput = row.querySelector(".work-minutes-input");
-
-        workInput.value = minutes >= 0 ? String(minutes) : "0";
-      });
-    }
-
-    function getRowDurationMinutes(row) {
-      const start = getRowDateTime(row, "start");
-      const end = getRowDateTime(row, "end");
-
-      if (!start || !end) {
-        return 0;
-      }
-
-      const minutes = Math.floor((end.getTime() - start.getTime()) / 60000);
-
-      if (minutes < 0 || minutes > 15 * 60) {
-        return 0;
-      }
-
-      return minutes;
-    }
-
-    function getRowDateTime(row, type) {
-      const dateValue = row.querySelector(`.${type}-date`).value;
-      const timeValue = row.querySelector(`.${type}-time`).value;
-
-      return dateTimeToDate(dateValue, timeValue);
-    }
-
-    function makeOverflowSourceKey(previousRow, currentRow) {
-      const previousIndex = getRows()
-        .filter((row) => row.dataset.autoGenerated !== "true")
-        .indexOf(previousRow);
-      const currentIndex = getRows()
-        .filter((row) => row.dataset.autoGenerated !== "true")
-        .indexOf(currentRow);
-
-      return [
-        previousIndex,
-        currentIndex,
-        previousRow.querySelector(".task-number").value,
-        previousRow.querySelector(".task-name").value,
-        previousRow.querySelector(".start-date").value,
-        previousRow.querySelector(".start-time").value
-      ].join("|");
-    }
-
-    function formatScheduleDate(date) {
-      return [
-        date.getFullYear(),
-        String(date.getMonth() + 1).padStart(2, "0"),
-        String(date.getDate()).padStart(2, "0")
-      ].join("-");
-    }
-
-    function formatScheduleTime(date) {
-      return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-    }
-
     function getRows() {
       return [...tableBody.querySelectorAll("tr")];
     }
@@ -1403,20 +1203,8 @@
     }
 
     function duplicateRow(sourceRow) {
-      let matchId = sourceRow.dataset.matchId || "";
-
-      if (!matchId) {
-        matchId = createMatchId();
-        sourceRow.dataset.matchId = matchId;
-      }
-
       const rowData = readRowDataFromElement(sourceRow);
-      rowData.autoGenerated = false;
-      rowData.overflowSourceKey = "";
-      rowData.matchId = matchId;
-
       const newRow = addRow(rowData, sourceRow, false);
-      newRow.dataset.matchId = matchId;
 
       const rows = getRows();
       const newIndex = rows.indexOf(newRow);
@@ -1430,46 +1218,8 @@
       return newRow;
     }
 
-    function createMatchId() {
-      if (window.crypto && typeof window.crypto.randomUUID === "function") {
-        return window.crypto.randomUUID();
-      }
-
-      return `match-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    }
-
-    function synchronizeMatchedTaskNamesAfterRecalculation() {
-      const snapshot = lastBlurredMatchedTask;
-
-      if (!snapshot || !snapshot.matchId) {
-        lastBlurredMatchedTask = null;
-        return;
-      }
-
-      getRows()
-        .filter((row) => row.dataset.matchId === snapshot.matchId)
-        .forEach((row) => {
-          const taskInput = row.querySelector(".task-name");
-
-          if (!taskInput) {
-            return;
-          }
-
-          taskInput.value = snapshot.taskName;
-
-          if (activeDetailRow === row) {
-            updateTaskDetailPanelTitle(row);
-          }
-        });
-
-      lastBlurredMatchedTask = null;
-    }
-
     function readRowDataFromElement(tr) {
       return {
-        autoGenerated: tr.dataset.autoGenerated === "true",
-        overflowSourceKey: tr.dataset.overflowSourceKey || "",
-        matchId: tr.dataset.matchId || "",
         startDate: tr.querySelector(".start-date").value,
         startTime: tr.querySelector(".start-time").value,
         endDate: tr.querySelector(".end-date").value,
@@ -1477,7 +1227,7 @@
         taskNumber: tr.querySelector(".task-number").value,
         taskName: tr.querySelector(".task-name").value,
         taskDetail: tr.dataset.taskDetail || "",
-        status: tr.querySelector(".btn-status").textContent,
+        status: tr.querySelector(".btn-status").dataset.status || getStatusFromButton(tr.querySelector(".btn-status")),
         sync: tr.querySelector(".sync-check").checked,
         insertPosition: tr.querySelector(".insert-check").checked,
         workMinutesText: tr.querySelector(".work-minutes-input").value
@@ -1485,17 +1235,6 @@
     }
 
     function applyRowDataToElement(tr, data) {
-      tr.dataset.autoGenerated = data.autoGenerated ? "true" : "";
-      tr.dataset.overflowSourceKey = data.overflowSourceKey || "";
-      tr.dataset.matchId = data.matchId || "";
-      tr.classList.toggle("auto-generated-row", !!data.autoGenerated);
-
-      if (data.autoGenerated) {
-        tr.title = "同期ありタスクの超過時間から自動生成された行";
-      } else {
-        tr.removeAttribute("title");
-      }
-
       tr.querySelector(".start-date").value = data.startDate || "";
       tr.querySelector(".start-time").value = data.startTime || "";
       tr.querySelector(".end-date").value = data.endDate || "";
@@ -1520,41 +1259,86 @@
 
     function cycleStatus(tr) {
       const btn = tr.querySelector(".btn-status");
-      const current = btn.textContent;
+      if (!btn) return;
 
-      if (current === STATUS_TODO) {
-        const ok = confirm("仕掛ますか？");
-        if (!ok) return;
+      const currentStatus = btn.dataset.status || getStatusFromButton(btn);
 
-        setStatus(tr, STATUS_DOING);
-        saveAll();
-        return;
+      switch (currentStatus) {
+        case STATUS_TODO: {
+          const ok = confirm("仕掛にしますか？");
+          if (!ok) return;
+
+          setStatus(tr, STATUS_DOING);
+          saveAll();
+          break;
+        }
+
+        case STATUS_DOING: {
+          const ok = confirm("完了にしますか？\n予定終了時刻は変更されません。");
+          if (!ok) return;
+
+          setStatus(tr, STATUS_DONE);
+          saveAll();
+          break;
+        }
+
+        case STATUS_DONE:
+          openStatusChoiceDialog(tr);
+          break;
+
+        case STATUS_DONE_ADJUSTED: {
+          const ok = confirm("未着手に戻しますか？");
+          if (!ok) return;
+
+          setStatus(tr, STATUS_TODO);
+          saveAll();
+          break;
+        }
+
+        default:
+          setStatus(tr, STATUS_TODO);
+          saveAll();
+          break;
       }
+    }
 
-      if (current === STATUS_DOING) {
-        const endDateInput = tr.querySelector(".end-date");
-        const endInput = tr.querySelector(".end-time");
-        endDateInput.value = getCurrentDateString();
-        endInput.value = getCurrentTimeString();
+    function getStatusFromButton(btn) {
+      const text = btn.textContent.trim();
 
-        updateWorkMinutes(tr);
-        setStatus(tr, STATUS_DONE);
+      if (text === STATUS_DOING) return STATUS_DOING;
+      if (text === STATUS_DONE) return STATUS_DONE;
+      if (text === STATUS_DONE_ADJUSTED) return STATUS_DONE_ADJUSTED;
+      return STATUS_TODO;
+    }
 
-        const rows = getRows();
-        const index = rows.indexOf(tr);
-        applySyncFromIndex(index + 1);
+    function openStatusChoiceDialog(tr) {
+      statusChoiceTargetRow = tr;
+      statusChoiceModal.classList.add("is-open");
+      statusChoiceModal.setAttribute("aria-hidden", "false");
+      statusChoiceCancelBtn.focus();
+    }
 
-        saveAll();
-        return;
-      }
+    function closeStatusChoiceDialog() {
+      statusChoiceTargetRow = null;
+      statusChoiceModal.classList.remove("is-open");
+      statusChoiceModal.setAttribute("aria-hidden", "true");
+    }
 
-      if (current === STATUS_DONE) {
-        const ok = confirm("未着手にしますか？");
-        if (!ok) return;
+    function applyDoneAdjustment(tr) {
+      const endDateInput = tr.querySelector(".end-date");
+      const endInput = tr.querySelector(".end-time");
 
-        setStatus(tr, STATUS_TODO);
-        saveAll();
-      }
+      endDateInput.value = getCurrentDateString();
+      endInput.value = getCurrentTimeString();
+
+      updateWorkMinutes(tr);
+      setStatus(tr, STATUS_DONE_ADJUSTED);
+
+      const rows = getRows();
+      const index = rows.indexOf(tr);
+      applySyncFromIndex(index + 1);
+
+      saveAll();
     }
 
     function getCurrentTimeString() {
@@ -1566,16 +1350,26 @@
 
     function setStatus(tr, status) {
       const btn = tr.querySelector(".btn-status");
-      btn.textContent = status;
-      btn.classList.remove("status-todo", "status-doing", "status-done");
+      if (!btn) return;
 
-      if (status === STATUS_TODO) {
-        btn.classList.add("status-todo");
-      } else if (status === STATUS_DOING) {
-        btn.classList.add("status-doing");
-      } else if (status === STATUS_DONE) {
-        btn.classList.add("status-done");
-      }
+      const statusMap = {
+        [STATUS_TODO]: "status-todo",
+        [STATUS_DOING]: "status-doing",
+        [STATUS_DONE]: "status-done",
+        [STATUS_DONE_ADJUSTED]: "status-done-adjusted"
+      };
+
+      const normalizedStatus = statusMap[status] ? status : STATUS_TODO;
+
+      btn.dataset.status = normalizedStatus;
+      btn.textContent = normalizedStatus;
+      btn.classList.remove(
+        "status-todo",
+        "status-doing",
+        "status-done",
+        "status-done-adjusted"
+      );
+      btn.classList.add(statusMap[normalizedStatus]);
     }
 
     function updateWorkMinutes(tr) {
@@ -1830,7 +1624,42 @@
       return minutesToTimeString(base + plusMinutes);
     }
 
+
+    function updateSyncOverlapWarning() {
+      const rows=getRows();
+
+      rows.forEach(row=>{
+        row.querySelector(".end-date")?.classList.remove("sync-overlap");
+        row.querySelector(".end-time")?.classList.remove("sync-overlap");
+      });
+
+      for(let i=1;i<rows.length;i++){
+        const row=rows[i];
+        const sync=row.querySelector(".sync-check");
+        if(sync && sync.checked) continue;
+
+        const prev=rows[i-1];
+
+        const prevDt=dateTimeToDate(
+          prev.querySelector(".end-date").value,
+          prev.querySelector(".end-time").value
+        );
+        const curDt=dateTimeToDate(
+          row.querySelector(".start-date").value,
+          row.querySelector(".start-time").value
+        );
+
+        if(!prevDt||!curDt) continue;
+
+        if(prevDt.getTime()>curDt.getTime()){
+          prev.querySelector(".end-date")?.classList.add("sync-overlap");
+          prev.querySelector(".end-time")?.classList.add("sync-overlap");
+        }
+      }
+    }
+
     function saveAll() {
+      updateSyncOverlapWarning();
       saveRows();
       saveColumnWidths();
       saveTableWidth();
@@ -2129,7 +1958,8 @@
       const nowMs = Date.now();
 
       getRows().forEach((row, index) => {
-        const status = row.querySelector(".btn-status").textContent;
+        const statusButton = row.querySelector(".btn-status");
+        const status = statusButton.dataset.status || getStatusFromButton(statusButton);
 
         const startDateValue = row.querySelector(".start-date").value;
         const startValue = row.querySelector(".start-time").value;
