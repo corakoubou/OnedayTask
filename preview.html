@@ -413,11 +413,50 @@
       color:#fff !important;
     }
 
+
+    [hidden] { display: none !important; }
+    .app-header { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; margin-bottom: 16px; }
+    .app-header h1 { margin: 0; }
+    .mode-switch { display: flex; gap: 4px; padding: 4px; background: var(--panel); border-radius: 10px; }
+    .mode-switch button { background: transparent; color: var(--muted); }
+    .mode-switch button[aria-pressed="true"] { background: var(--accent); color: white; }
+    .memo-toolbar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+    .memo-toolbar p { margin: 0; color: var(--muted); font-size: 13px; }
+    .memo-board { position: relative; min-height: 70vh; overflow: auto; border: 1px solid var(--line); border-radius: 12px;
+      background: radial-gradient(var(--line) 1px, transparent 1px) 0 0 / 20px 20px, var(--panel); }
+    .memo-empty { padding: 36px 20px; color: var(--muted); text-align: center; }
+    .sticky-note { position: absolute; display: flex; flex-direction: column; min-width: 240px; min-height: 180px;
+      background: #fff1a8; color: #302b20; border-radius: 8px; box-shadow: 0 6px 18px #0004; overflow: hidden; }
+    .memo-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; gap: 6px;
+      background: #0000000c; cursor: move; touch-action: none; }
+    .memo-header label { display: flex; align-items: center; gap: 4px; font-size: 12px; cursor: default; }
+    .memo-font { width: 58px; padding: 4px; border: 1px solid #a49658; border-radius: 4px; background: #fff9dc; color: #302b20; }
+    .memo-delete { padding: 5px 8px; background: transparent; color: #65482b; }
+    .memo-text { flex: 1; min-height: 0; width: 100%; padding: 12px 14px 24px; background: transparent; color: inherit;
+      border: 0; resize: none; font-family: inherit; line-height: 1.6; }
+    .memo-text:focus { outline: 2px solid #a18030; outline-offset: -3px; }
+    .memo-resize { position: absolute; right: 0; bottom: 0; width: 26px; height: 26px; padding: 0;
+      background: transparent; color: #806e36; cursor: nwse-resize; touch-action: none; border-radius: 0; }
+    .memo-resize:focus-visible { outline: 2px solid #806e36; outline-offset: -2px; }
+    @media (max-width: 540px) { body { padding: 12px; } .app-header { gap: 12px; } .memo-board { min-height: 75vh; } }
 </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>一日タスク管理</h1>
+    <header class="app-header">
+      <h1>一日タスク管理</h1>
+      <div class="mode-switch" role="group" aria-label="画面モード">
+        <button id="taskModeBtn" type="button" aria-pressed="true" aria-controls="taskMode">タスク管理モード</button>
+        <button id="memoModeBtn" type="button" aria-pressed="false" aria-controls="memoMode">メモモード</button>
+      </div>
+    </header>
+    <section id="memoMode" aria-label="メモモード" hidden>
+      <div class="memo-toolbar"><button id="addMemoBtn" type="button">＋ 付箋を追加</button>
+        <p>上部をドラッグして移動／右下をドラッグしてサイズ変更。文字サイズ・内容・配置は自動保存されます。</p></div>
+      <div id="memoBoard" class="memo-board"><p id="memoEmpty" class="memo-empty">「付箋を追加」からメモを書き始めましょう。</p></div>
+      <p id="memoSaveStatus" class="hint" role="status"></p>
+    </section>
+    <section id="taskMode" aria-label="タスク管理モード">
 
     <div class="toolbar">
       <button id="addTaskBtn" type="button">タスク作成</button>
@@ -515,6 +554,7 @@
         placeholder="このタスクの詳細を入力"
       ></textarea>
     </div>
+    </section>
   </div>
 
 
@@ -2171,6 +2211,107 @@
     enableTableWidthResize();
     loadAll();
     startTaskNotificationTimer();
+  </script>
+  <script>
+    (() => {
+      const NOTES_KEY = "dailyTaskManager.memos";
+      const MODE_KEY = "dailyTaskManager.mode";
+      const board = document.getElementById("memoBoard");
+      const empty = document.getElementById("memoEmpty");
+      const status = document.getElementById("memoSaveStatus");
+      const taskButton = document.getElementById("taskModeBtn");
+      const memoButton = document.getElementById("memoModeBtn");
+      let notes = [];
+      let topLayer = 0;
+      const clamp = (value, min, max, fallback) => Number.isFinite(Number(value)) ? Math.min(max, Math.max(min, Number(value))) : fallback;
+      try {
+        const saved = JSON.parse(localStorage.getItem(NOTES_KEY) || "[]");
+        if (Array.isArray(saved)) notes = saved.filter(note => note && typeof note === "object").map(note => ({
+          text: typeof note.text === "string" ? note.text : "",
+          font: clamp(note.font, 8, 96, 16), x: clamp(note.x, 0, 10000, 20), y: clamp(note.y, 0, 10000, 20),
+          width: clamp(note.width, 240, 10000, 320), height: clamp(note.height, 180, 10000, 260)
+        }));
+      } catch { status.textContent = "保存されたメモを読み込めませんでした。"; }
+      function save() {
+        try { localStorage.setItem(NOTES_KEY, JSON.stringify(notes)); status.textContent = "自動保存済み"; }
+        catch { status.textContent = "保存できませんでした。ブラウザの保存容量・設定を確認してください。"; }
+      }
+      function setMode(mode) {
+        const memo = mode === "memo";
+        if (memo) closeTaskDetailPanel();
+        document.getElementById("taskMode").hidden = memo;
+        document.getElementById("memoMode").hidden = !memo;
+        taskButton.setAttribute("aria-pressed", String(!memo));
+        memoButton.setAttribute("aria-pressed", String(memo));
+        try { localStorage.setItem(MODE_KEY, memo ? "memo" : "task"); } catch {}
+      }
+      taskButton.addEventListener("click", () => setMode("task"));
+      memoButton.addEventListener("click", () => setMode("memo"));
+      function renderNote(note) {
+        const card = document.createElement("article");
+        card.className = "sticky-note";
+        card.setAttribute("aria-label", "付箋メモ");
+        card.innerHTML = `<div class="memo-header"><span aria-hidden="true">⠿</span><label>文字サイズ <input class="memo-font" type="number" min="8" max="96" step="1" aria-label="文字サイズ（px）">px</label><button class="memo-delete" type="button" aria-label="付箋を削除">削除</button></div><textarea class="memo-text" aria-label="メモ内容" placeholder="メモを入力…"></textarea><button class="memo-resize" type="button" aria-label="付箋のサイズ変更" title="ドラッグ、または矢印キーでサイズ変更">◢</button>`;
+        const text = card.querySelector(".memo-text");
+        const font = card.querySelector(".memo-font");
+        function layout() {
+          Object.assign(card.style, { left: note.x + "px", top: note.y + "px", width: note.width + "px", height: note.height + "px" });
+          text.style.fontSize = note.font + "px";
+        }
+        text.value = note.text;
+        font.value = note.font;
+        text.addEventListener("input", () => { note.text = text.value; save(); });
+        font.addEventListener("input", () => {
+          if (!font.value || !font.validity.valid) return;
+          note.font = Number(font.value); layout(); save();
+        });
+        font.addEventListener("change", () => { note.font = clamp(font.value || note.font, 8, 96, 16); font.value = note.font; layout(); save(); });
+        card.querySelector(".memo-delete").addEventListener("click", () => {
+          if (note.text.trim() && !confirm("この付箋を削除しますか？")) return;
+          notes.splice(notes.indexOf(note), 1); card.remove(); empty.hidden = notes.length > 0; save();
+        });
+        card.addEventListener("pointerdown", () => { card.style.zIndex = ++topLayer; });
+        function attachDrag(handle, resizing) {
+          handle.addEventListener("pointerdown", event => {
+            if (event.button !== 0 || (!resizing && event.target.closest("input, button, label"))) return;
+            event.preventDefault();
+            handle.setPointerCapture(event.pointerId);
+            const startX = event.clientX, startY = event.clientY;
+            const initial = { ...note };
+            function move(e) {
+              const dx = e.clientX - startX, dy = e.clientY - startY;
+              if (resizing) { note.width = Math.max(240, initial.width + dx); note.height = Math.max(180, initial.height + dy); }
+              else { note.x = Math.max(0, initial.x + dx); note.y = Math.max(0, initial.y + dy); }
+              layout();
+            }
+            function end() {
+              handle.removeEventListener("pointermove", move);
+              handle.removeEventListener("lostpointercapture", end); save();
+            }
+            handle.addEventListener("pointermove", move);
+            handle.addEventListener("lostpointercapture", end);
+          });
+        }
+        attachDrag(card.querySelector(".memo-header"), false);
+        const resize = card.querySelector(".memo-resize");
+        attachDrag(resize, true);
+        resize.addEventListener("keydown", event => {
+          const delta = { ArrowRight: [10, 0], ArrowLeft: [-10, 0], ArrowDown: [0, 10], ArrowUp: [0, -10] }[event.key];
+          if (!delta) return;
+          event.preventDefault(); note.width = Math.max(240, note.width + delta[0]); note.height = Math.max(180, note.height + delta[1]); layout(); save();
+        });
+        layout(); board.appendChild(card); empty.hidden = true;
+        return text;
+      }
+      document.getElementById("addMemoBtn").addEventListener("click", () => {
+        const offset = (notes.length % 8) * 24;
+        const note = { text: "", font: 16, x: Math.min(20 + offset, Math.max(0, board.clientWidth - 260)), y: 20 + offset + board.scrollTop,
+          width: Math.min(320, Math.max(240, board.clientWidth - 40)), height: 260 };
+        notes.push(note); renderNote(note).focus(); save();
+      });
+      notes.forEach(renderNote);
+      try { setMode(localStorage.getItem(MODE_KEY)); } catch { setMode("task"); }
+    })();
   </script>
 </body>
 </html>
