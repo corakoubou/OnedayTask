@@ -252,22 +252,6 @@
     .weekday-fri { color: #f0abfc; }
     .weekday-sat { color: #6fa8ff; }
 
-    .task-number-input {
-      text-align: center !important;
-      font-family: Consolas, monospace;
-      border-width: 2px;
-    }
-
-    .task-number-color-0 { background: #3b2f2f !important; }
-    .task-number-color-1 { background: #2f3b30 !important; }
-    .task-number-color-2 { background: #2f353b !important; }
-    .task-number-color-3 { background: #3b2f3a !important; }
-    .task-number-color-4 { background: #3b392f !important; }
-    .task-number-color-5 { background: #2f3b3a !important; }
-    .task-number-color-6 { background: #332f3b !important; }
-    .task-number-color-7 { background: #3b332f !important; }
-    .task-number-color-8 { background: #2f323b !important; }
-    .task-number-color-9 { background: #3a3b2f !important; }
 
     .task-input {
       width: 100%;
@@ -488,13 +472,14 @@
           <col style="width: 130px;" />
           <col style="width: 130px;" />
           <col style="width: 130px;" />
-          <col style="width: 100px;" />
           <col style="width: 300px;" />
           <col style="width: 120px;" />
           <col style="width: 120px;" />
           <col style="width: 90px;" />
           <col style="width: 90px;" />
           <col style="width: 90px;" />
+          <col style="width: 100px;" />
+          <col style="width: 120px;" />
         </colgroup>
 
         <thead>
@@ -506,13 +491,14 @@
             <th class="resizable">予定終了日</th>
             <th class="resizable">予定開始</th>
             <th class="resizable">予定終了</th>
-            <th class="resizable">タスク番号</th>
             <th class="resizable">タスク</th>
             <th class="resizable">状態</th>
             <th class="resizable">作業時間</th>
             <th class="resizable">同期</th>
             <th class="resizable">削除</th>
             <th>複製</th>
+            <th>半分に分割</th>
+            <th>差引分割</th>
           </tr>
         </thead>
 
@@ -525,7 +511,6 @@
       ※ 列の右端をドラッグすると、その列の横幅を変更できるっす。<br />
       ※ 表の右上の小さいハンドルを左右ドラッグすると、表全体の横幅を変更できるっす。<br />
       ※ 表データ・列幅・表幅は自動保存するっす。<br />
-      ※ タスク番号列は、同一種類のタスクを管理するための任意入力欄っす。同じ番号は同じ色で表示するっす。<br />
       ※ タスク名をクリックすると、画面下半分にその行専用の詳細入力欄が開くっす。<br />
       ※ 日付は YYYY-MM-DD 形式、時間は HH:MM 形式で中央揃えっす。開始日の左隣に曜日を1文字・曜日ごとに色違いで表示するっす。<br />
       ※ フォーカスアウト時の処理順は「作業時間算出 → 同期処理」っす。<br />
@@ -763,7 +748,6 @@
         <td><input type="text" class="date-input end-date" placeholder="YYYY-MM-DD" maxlength="10" tabindex="0"></td>
         <td><input type="text" class="time-input start-time" placeholder="00:00" maxlength="5" tabindex="0"></td>
         <td><input type="text" class="time-input end-time" placeholder="00:00" maxlength="5" tabindex="0"></td>
-        <td><input type="text" class="task-number-input task-number" placeholder="番号" tabindex="0"></td>
         <td><input type="text" class="task-input task-name" placeholder="タスク名" tabindex="0"></td>
         <td><button type="button" class="btn-status status-todo" tabindex="-1">${STATUS_TODO}</button></td>
         <td class="work-minutes-cell" tabindex="-1">
@@ -780,6 +764,8 @@
         <td class="sync-cell"><input type="checkbox" class="sync-check" tabindex="-1"></td>
         <td><button type="button" class="btn-danger delete-btn" tabindex="-1">削除</button></td>
         <td><button type="button" class="btn-copy copy-btn" tabindex="-1">複製</button></td>
+        <td><button type="button" class="btn-copy half-btn" tabindex="-1">半分に分割</button></td>
+        <td><button type="button" class="btn-copy split-btn" tabindex="-1">差引分割</button></td>
       `;
 
       if (insertAfterRow && insertAfterRow.parentNode === tableBody) {
@@ -862,7 +848,6 @@
       const startInput = tr.querySelector(".start-time");
       const endDateInput = tr.querySelector(".end-date");
       const endInput = tr.querySelector(".end-time");
-      const taskNumberInput = tr.querySelector(".task-number");
       const taskInput = tr.querySelector(".task-name");
       const workInput = tr.querySelector(".work-minutes-input");
       const syncCheck = tr.querySelector(".sync-check");
@@ -871,6 +856,11 @@
       const deleteBtn = tr.querySelector(".delete-btn");
       const copyBtn = tr.querySelector(".copy-btn");
 
+      tr.querySelector(".half-btn").addEventListener("click", () => splitTask(tr));
+      tr.querySelector(".split-btn").addEventListener("click", () => splitTask(tr, true));
+      [startInput, endInput, startDateInput, endDateInput].forEach(input => {
+        input.addEventListener("focus", () => { input.dataset.previousValue = input.value; });
+      });
       dragHandle.draggable = true;
 
       statusBtn.addEventListener("click", (event) => {
@@ -882,12 +872,14 @@
 
       startDateInput.addEventListener("blur", () => {
         startDateInput.value = normalizeDateInputValue(startDateInput.value);
+        restoreInvalidRange(tr, startDateInput);
         updateStartWeekday(tr);
         saveAll();
       });
 
       endDateInput.addEventListener("blur", () => {
         endDateInput.value = normalizeDateInputValue(endDateInput.value);
+        restoreInvalidRange(tr, endDateInput);
         saveAll();
       });
 
@@ -899,10 +891,6 @@
         handleTimeBlur(tr, endInput);
       });
 
-      taskNumberInput.addEventListener("input", () => {
-        updateTaskNumberColor(tr);
-        saveAll();
-      });
 
       taskInput.addEventListener("input", () => {
         if (activeDetailRow === tr) {
@@ -1027,8 +1015,58 @@
       });
     }
 
+    function rowRange(tr) {
+      const data = readRowDataFromElement(tr);
+      const date = data.startDate || getCurrentDateString();
+      return {
+        start: dateTimeToDate(date, data.startTime),
+        end: dateTimeToDate(data.endDate || date, data.endTime)
+      };
+    }
+
+    function restoreInvalidRange(tr, input) {
+      const { start, end } = rowRange(tr);
+      if (start && end && end < start) {
+        input.value = input.dataset.previousValue ?? "";
+      }
+    }
+
+    function splitTask(tr, custom = false) {
+      const { start, end } = rowRange(tr);
+      if (!start || !end || end - start < 120000) {
+        alert("分割するには、開始・終了日時を入力し、2分以上の時間を設定してください。");
+        return;
+      }
+      let point;
+      if (custom) {
+        const value = prompt("分割する時刻を入力してください（HH:MM）", getCurrentTimeString());
+        if (value === null) return;
+        const time = normalizeTimeInputValue(value);
+        point = dateTimeToDate(tr.querySelector(".start-date").value || getCurrentDateString(), time);
+        if (point && point <= start && end.getDate() !== start.getDate()) point.setDate(point.getDate() + 1);
+      } else {
+        point = new Date(start.getTime() + Math.floor((end - start) / 120000) * 60000);
+      }
+      if (!point || point <= start || point >= end) {
+        alert("開始時刻より後、終了時刻より前の時刻を入力してください。");
+        return;
+      }
+      const date = `${point.getFullYear()}-${String(point.getMonth() + 1).padStart(2, "0")}-${String(point.getDate()).padStart(2, "0")}`;
+      const time = `${String(point.getHours()).padStart(2, "0")}:${String(point.getMinutes()).padStart(2, "0")}`;
+      const data = readRowDataFromElement(tr);
+      const newRow = addRow({ ...data, startDate: date, startTime: time, sync: true, insertPosition: false, workMinutesText: "" }, tr);
+      tr.querySelector(".end-date").value = date;
+      tr.querySelector(".end-time").value = time;
+      updateWorkMinutes(tr);
+      updateWorkMinutes(newRow);
+      refreshSyncCheckboxState();
+      applySyncFromIndex(getRows().indexOf(newRow) + 1);
+      saveAll();
+    }
+
     function handleTimeBlur(tr, inputElement) {
       inputElement.value = normalizeTimeInputValue(inputElement.value);
+      restoreInvalidRange(tr, inputElement);
       updateWorkMinutes(tr);
 
       const rows = getRows();
@@ -1153,18 +1191,7 @@
     }
 
     function updateTaskDetailPanelTitle(row) {
-      const taskNumber = row.querySelector(".task-number").value.trim();
-      const taskName = row.querySelector(".task-name").value.trim();
-
-      const parts = [];
-
-      if (taskNumber) {
-        parts.push(`番号：${taskNumber}`);
-      }
-
-      parts.push(taskName || "名称未入力のタスク");
-
-      taskDetailTitle.textContent = parts.join(" / ");
+      taskDetailTitle.textContent = row.querySelector(".task-name").value.trim() || "名称未入力のタスク";
     }
 
     function getRows() {
@@ -1264,7 +1291,6 @@
         startTime: tr.querySelector(".start-time").value,
         endDate: tr.querySelector(".end-date").value,
         endTime: tr.querySelector(".end-time").value,
-        taskNumber: tr.querySelector(".task-number").value,
         taskName: tr.querySelector(".task-name").value,
         taskDetail: tr.dataset.taskDetail || "",
         status: tr.querySelector(".btn-status").dataset.status || getStatusFromButton(tr.querySelector(".btn-status")),
@@ -1279,10 +1305,8 @@
       tr.querySelector(".start-time").value = data.startTime || "";
       tr.querySelector(".end-date").value = data.endDate || "";
       tr.querySelector(".end-time").value = data.endTime || "";
-      tr.querySelector(".task-number").value = data.taskNumber || "";
       tr.querySelector(".task-name").value = data.taskName || "";
       tr.dataset.taskDetail = data.taskDetail || "";
-      updateTaskNumberColor(tr);
       updateStartWeekday(tr);
       tr.querySelector(".sync-check").checked = !!data.sync;
       tr.querySelector(".insert-check").checked = !!data.insertPosition;
@@ -1482,40 +1506,6 @@
         date.getMonth() === mm - 1 &&
         date.getDate() === dd
       );
-    }
-
-    function updateTaskNumberColor(row) {
-      const input = row.querySelector(".task-number");
-      if (!input) return;
-
-      input.classList.remove(
-        "task-number-color-0",
-        "task-number-color-1",
-        "task-number-color-2",
-        "task-number-color-3",
-        "task-number-color-4",
-        "task-number-color-5",
-        "task-number-color-6",
-        "task-number-color-7",
-        "task-number-color-8",
-        "task-number-color-9"
-      );
-
-      const value = input.value.trim();
-      if (!value) return;
-
-      const index = getTaskNumberColorIndex(value);
-      input.classList.add(`task-number-color-${index}`);
-    }
-
-    function getTaskNumberColorIndex(value) {
-      let hash = 0;
-
-      for (let i = 0; i < value.length; i += 1) {
-        hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
-      }
-
-      return hash % 10;
     }
 
     function updateStartWeekday(row) {
@@ -1902,7 +1892,6 @@
         "予定開始",
         "予定終了日",
         "予定終了",
-        "タスク番号",
         "タスク",
         "状態",
         "作業時間",
@@ -1916,7 +1905,6 @@
         tr.querySelector(".start-time").value || "",
         tr.querySelector(".end-date").value || "",
         tr.querySelector(".end-time").value || "",
-        tr.querySelector(".task-number").value || "",
         tr.querySelector(".task-name").value || "",
         tr.querySelector(".btn-status").textContent || "",
         formatWorkMinutesForOutput(tr.querySelector(".work-minutes-input").value || ""),
