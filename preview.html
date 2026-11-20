@@ -183,10 +183,13 @@
 
     table {
       width: 100%;
-      min-width: 1590px;
+      min-width: 0;
       border-collapse: collapse;
       table-layout: fixed;
     }
+
+    #taskTable th { white-space: normal; overflow-wrap: anywhere; }
+    #taskTable td > button { width: 100%; min-width: 0; padding: 10px 2px; overflow-wrap: anywhere; }
 
     thead { background: var(--panel2); }
 
@@ -380,7 +383,7 @@
     .col-resizer {
       position: absolute;
       top: 0;
-      right: -4px;
+      right: 0;
       width: 10px;
       height: 100%;
       cursor: col-resize;
@@ -1763,6 +1766,7 @@
     function loadAll() {
       loadColumnWidths();
       loadTableWidth();
+      fitColumnWidths();
       loadRows();
       refreshSyncCheckboxState();
       normalizeInsertPositionState();
@@ -1813,6 +1817,13 @@
       tableWrap.style.width = width;
     }
 
+    function fitColumnWidths(weights = null) {
+      const cols = [...colGroup.querySelectorAll("col")];
+      const sizes = weights || cols.map(col => Math.max(1, parseFloat(col.style.width) || 100));
+      const total = sizes.reduce((sum, width) => sum + width, 0);
+      cols.forEach((col, index) => { col.style.width = `${sizes[index] / total * 100}%`; });
+    }
+
     function resetColumnWidthsToDefault() {
       const defaults = ["70px","90px","40px","130px","130px","130px","130px","300px","120px","120px","90px","90px","90px","100px","120px"];
       const cols = colGroup.querySelectorAll("col");
@@ -1820,6 +1831,7 @@
       cols.forEach((col, index) => {
         col.style.width = defaults[index] || "120px";
       });
+      fitColumnWidths();
     }
 
     function resetTableWidthToDefault() {
@@ -1841,6 +1853,7 @@
         let startX = 0;
         let startWidth = 0;
         let active = false;
+        let initialWidths = [];
 
         resizer.addEventListener("mousedown", (e) => {
           e.preventDefault();
@@ -1849,6 +1862,7 @@
           active = true;
           startX = e.pageX;
           startWidth = th.getBoundingClientRect().width;
+          initialWidths = [...headers].map(header => header.getBoundingClientRect().width);
 
           resizer.classList.add("active");
           document.body.style.cursor = "col-resize";
@@ -1858,7 +1872,9 @@
             if (!active) return;
             const diff = ev.pageX - startX;
             const newWidth = Math.max(50, Math.round(startWidth + diff));
-            cols[index].style.width = `${newWidth}px`;
+            const widths = [...initialWidths];
+            widths[index] = newWidth;
+            fitColumnWidths(widths);
           }
 
           function onMouseUp() {
