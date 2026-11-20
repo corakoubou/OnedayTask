@@ -497,8 +497,8 @@
             <th class="resizable">同期</th>
             <th class="resizable">削除</th>
             <th>複製</th>
-            <th>半分に分割</th>
-            <th>差引分割</th>
+            <th class="resizable">分割</th>
+            <th class="resizable">差引分割</th>
           </tr>
         </thead>
 
@@ -557,6 +557,21 @@
     </div>
   </div>
 
+  <dialog id="durationSplitDialog" aria-labelledby="durationSplitTitle" style="background:#252525;color:#eee;border:1px solid #666;border-radius:10px;padding:24px;max-width:90vw;">
+    <form id="durationSplitForm">
+      <h2 id="durationSplitTitle">作業時間を分割</h2>
+      <p id="durationSplitTotal"></p>
+      <p>
+        <label>前半 <input id="splitFirstMinutes" type="number" min="1" step="1" required style="width:90px"> 分</label>
+        と
+        <label>後半 <input id="splitSecondMinutes" type="number" min="1" step="1" required style="width:90px"> 分</label>
+        に分割
+      </p>
+      <p id="durationSplitError" role="alert" style="color:#ff9999;"></p>
+      <button type="submit">分割</button>
+      <button id="durationSplitCancel" type="button">キャンセル</button>
+    </form>
+  </dialog>
   <script>
     const STORAGE_KEY_ROWS = "dailyTaskManager.rows";
     const STORAGE_KEY_COL_WIDTHS = "dailyTaskManager.colWidths";
@@ -764,7 +779,7 @@
         <td class="sync-cell"><input type="checkbox" class="sync-check" tabindex="-1"></td>
         <td><button type="button" class="btn-danger delete-btn" tabindex="-1">削除</button></td>
         <td><button type="button" class="btn-copy copy-btn" tabindex="-1">複製</button></td>
-        <td><button type="button" class="btn-copy half-btn" tabindex="-1">半分に分割</button></td>
+        <td><button type="button" class="btn-copy half-btn" tabindex="-1">分割</button></td>
         <td><button type="button" class="btn-copy split-btn" tabindex="-1">差引分割</button></td>
       `;
 
@@ -1031,7 +1046,40 @@
       }
     }
 
-    function splitTask(tr, custom = false) {
+    function requestSplitMinutes(total) {
+      const dialog = document.getElementById("durationSplitDialog");
+      const form = document.getElementById("durationSplitForm");
+      const first = document.getElementById("splitFirstMinutes");
+      const second = document.getElementById("splitSecondMinutes");
+      const error = document.getElementById("durationSplitError");
+      document.getElementById("durationSplitTotal").textContent = `作業時間 ${total}分を分割します。`;
+      first.value = Math.floor(total / 2);
+      second.value = total - Number(first.value);
+      first.max = second.max = total - 1;
+      error.textContent = "";
+      first.oninput = () => { second.value = total - Number(first.value); error.textContent = ""; };
+      second.oninput = () => { first.value = total - Number(second.value); error.textContent = ""; };
+      return new Promise(resolve => {
+        let result = null;
+        form.onsubmit = event => {
+          event.preventDefault();
+          const a = Number(first.value), b = Number(second.value);
+          if (!Number.isInteger(a) || !Number.isInteger(b) || a < 1 || b < 1 || a + b !== total) {
+            error.textContent = `前半と後半は1分以上の整数で、合計${total}分にしてください。`;
+            return;
+          }
+          result = a;
+          dialog.close();
+        };
+        document.getElementById("durationSplitCancel").onclick = () => dialog.close();
+        dialog.addEventListener("close", () => resolve(result), { once: true });
+        dialog.showModal();
+        first.focus();
+        first.select();
+      });
+    }
+
+    async function splitTask(tr, custom = false) {
       const { start, end } = rowRange(tr);
       if (!start || !end || end - start < 120000) {
         alert("分割するには、開始・終了日時を入力し、2分以上の時間を設定してください。");
@@ -1045,7 +1093,9 @@
         point = dateTimeToDate(tr.querySelector(".start-date").value || getCurrentDateString(), time);
         if (point && point <= start && end.getDate() !== start.getDate()) point.setDate(point.getDate() + 1);
       } else {
-        point = new Date(start.getTime() + Math.floor((end - start) / 120000) * 60000);
+        const minutes = await requestSplitMinutes(Math.round((end - start) / 60000));
+        if (minutes === null || !tr.isConnected) return;
+        point = new Date(start.getTime() + minutes * 60000);
       }
       if (!point || point <= start || point >= end) {
         alert("開始時刻より後、終了時刻より前の時刻を入力してください。");
@@ -1054,7 +1104,7 @@
       const date = `${point.getFullYear()}-${String(point.getMonth() + 1).padStart(2, "0")}-${String(point.getDate()).padStart(2, "0")}`;
       const time = `${String(point.getHours()).padStart(2, "0")}:${String(point.getMinutes()).padStart(2, "0")}`;
       const data = readRowDataFromElement(tr);
-      const newRow = addRow({ ...data, startDate: date, startTime: time, sync: true, insertPosition: false, workMinutesText: "" }, tr);
+      const newRow = addRow({ ...data, startDate: date, startTime: time, status: STATUS_TODO, sync: true, insertPosition: false, workMinutesText: "" }, tr);
       tr.querySelector(".end-date").value = date;
       tr.querySelector(".end-time").value = time;
       updateWorkMinutes(tr);
@@ -1764,7 +1814,7 @@
     }
 
     function resetColumnWidthsToDefault() {
-      const defaults = ["70px","90px","40px","130px","130px","130px","130px","100px","300px","120px","120px","90px","90px","90px"];
+      const defaults = ["70px","90px","40px","130px","130px","130px","130px","300px","120px","120px","90px","90px","90px","100px","120px"];
       const cols = colGroup.querySelectorAll("col");
 
       cols.forEach((col, index) => {
