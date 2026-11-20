@@ -67,6 +67,12 @@
     button:hover { filter: brightness(1.08); }
 
     .btn-danger { background: var(--danger); }
+    .task-action-select {
+      width: 100%; min-width: 0; padding: 10px 4px; border: none;
+      border-radius: 8px; background: #6f7cff; color: white; cursor: pointer; font-size: 14px;
+    }
+    .task-action-select option { background: var(--panel); color: var(--text); }
+
     .btn-copy { background: #6f7cff; }
     .btn-sync { background: var(--success); }
     .btn-csv { background: var(--csv); }
@@ -487,10 +493,7 @@
           <col style="width: 120px;" />
           <col style="width: 90px;" />
           <col style="width: 90px;" />
-          <col style="width: 90px;" />
-          <col style="width: 100px;" />
-          <col style="width: 120px;" />
-          <col style="width: 120px;" />
+          <col style="width: 160px;" />
         </colgroup>
 
         <thead>
@@ -507,10 +510,7 @@
             <th class="resizable">作業時間</th>
             <th class="resizable">同期</th>
             <th class="resizable">削除</th>
-            <th class="resizable">複製</th>
-            <th class="resizable">分割</th>
-            <th class="resizable">差引分割</th>
-            <th class="resizable">下と結合</th>
+            <th class="resizable">操作</th>
           </tr>
         </thead>
 
@@ -790,10 +790,15 @@
         </td>
         <td class="sync-cell"><input type="checkbox" class="sync-check" tabindex="-1"></td>
         <td><button type="button" class="btn-danger delete-btn" tabindex="-1">削除</button></td>
-        <td><button type="button" class="btn-copy copy-btn" tabindex="-1">複製</button></td>
-        <td><button type="button" class="btn-copy half-btn" tabindex="-1">分割</button></td>
-        <td><button type="button" class="btn-copy split-btn" tabindex="-1">差引分割</button></td>
-        <td><button type="button" class="btn-copy merge-btn" tabindex="-1">下と結合</button></td>
+        <td>
+          <select class="task-action-select" aria-label="タスクの操作">
+            <option value="">操作を選択 ▾</option>
+            <option value="copy">複製</option>
+            <option value="split">分割</option>
+            <option value="subtract">差引分割</option>
+            <option value="merge">下と結合</option>
+          </select>
+        </td>
       `;
 
       if (insertAfterRow && insertAfterRow.parentNode === tableBody) {
@@ -882,11 +887,8 @@
       const insertCheck = tr.querySelector(".insert-check");
       const statusBtn = tr.querySelector(".btn-status");
       const deleteBtn = tr.querySelector(".delete-btn");
-      const copyBtn = tr.querySelector(".copy-btn");
+      const actionSelect = tr.querySelector(".task-action-select");
 
-      tr.querySelector(".merge-btn").addEventListener("click", () => mergeWithNext(tr));
-      tr.querySelector(".half-btn").addEventListener("click", () => splitTask(tr));
-      tr.querySelector(".split-btn").addEventListener("click", () => splitTask(tr, true));
       [startInput, endInput, startDateInput, endDateInput].forEach(input => {
         input.addEventListener("focus", () => { input.dataset.previousValue = input.value; });
       });
@@ -977,16 +979,22 @@
         saveAll();
       });
 
-      copyBtn.addEventListener("click", () => {
-        const newRow = duplicateRow(tr);
-        refreshSyncCheckboxState();
-        saveAll();
-
-        if (newRow) {
-          const taskInputInNewRow = newRow.querySelector(".task-name");
-          if (taskInputInNewRow) {
-            taskInputInNewRow.focus();
-          }
+      actionSelect.addEventListener("change", () => {
+        const action = actionSelect.value;
+        actionSelect.value = "";
+        if (action === "copy") {
+          if (!confirm("このタスクを複製しますか？")) return;
+          const newRow = duplicateRow(tr);
+          refreshSyncCheckboxState();
+          saveAll();
+          newRow?.querySelector(".task-name").focus();
+        } else if (action === "split") {
+          splitTask(tr);
+        } else if (action === "subtract") {
+          splitTask(tr, true);
+        } else if (action === "merge") {
+          if (!tr.nextElementSibling || !confirm("下のタスクと結合しますか？\n作業時間を合計し、この行の開始時刻・ステータスを引き継ぎます。")) return;
+          mergeWithNext(tr);
         }
       });
 
@@ -1345,7 +1353,7 @@
       rows.forEach((row, index) => {
         const syncCheck = row.querySelector(".sync-check");
         if (!syncCheck) return;
-        row.querySelector(".merge-btn").disabled = index === rows.length - 1;
+        row.querySelector('.task-action-select option[value="merge"]').disabled = index === rows.length - 1;
 
         if (index === 0) {
           syncCheck.checked = false;
@@ -1846,6 +1854,11 @@
       if (!Array.isArray(widths)) return;
 
       const cols = colGroup.querySelectorAll("col");
+      if (widths.length > cols.length) {
+        const unit = String(widths[0]).endsWith("%") ? "%" : "px";
+        const combined = widths.slice(cols.length - 1).reduce((sum, width) => sum + (parseFloat(width) || 0), 0);
+        widths = [...widths.slice(0, cols.length - 1), `${combined}${unit}`];
+      }
       if (widths.length < cols.length && widths.every(width => String(width).endsWith("%"))) {
         while (widths.length < cols.length) widths.push(`${100 / cols.length}%`);
       }
@@ -1869,7 +1882,7 @@
     }
 
     function resetColumnWidthsToDefault() {
-      const defaults = ["70px","90px","40px","130px","130px","130px","130px","300px","120px","120px","90px","90px","90px","100px","120px","120px"];
+      const defaults = ["70px","90px","40px","130px","130px","130px","130px","300px","120px","120px","90px","90px","160px"];
       const cols = colGroup.querySelectorAll("col");
 
       cols.forEach((col, index) => {
