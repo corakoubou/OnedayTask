@@ -391,6 +391,13 @@
       z-index: 20;
     }
 
+    th:last-child .col-resizer {
+      left: 0;
+      right: auto;
+      width: 14px;
+      background: rgba(74, 144, 226, 0.18);
+    }
+
     .col-resizer:hover { background: rgba(74, 144, 226, 0.35); }
     .col-resizer.active { background: rgba(74, 144, 226, 0.55); }
   
@@ -1848,6 +1855,8 @@
 
         const resizer = document.createElement("span");
         resizer.className = "col-resizer";
+        const isLast = index === headers.length - 1;
+        resizer.title = isLast ? "左境界をドラッグして列幅を調整（左へ広げる／右へ狭める）" : "ドラッグして列幅を調整";
         th.appendChild(resizer);
 
         let startX = 0;
@@ -1870,10 +1879,12 @@
 
           function onMouseMove(ev) {
             if (!active) return;
-            const diff = ev.pageX - startX;
-            const newWidth = Math.max(50, Math.round(startWidth + diff));
-            const widths = [...initialWidths];
-            widths[index] = newWidth;
+            const diff = (ev.pageX - startX) * (isLast ? -1 : 1);
+            const total = initialWidths.reduce((sum, width) => sum + width, 0);
+            const minimum = Math.min(50, startWidth);
+            const newWidth = Math.max(minimum, Math.min(total - (total - startWidth) * 0.25, startWidth + diff));
+            const otherScale = (total - newWidth) / (total - startWidth);
+            const widths = initialWidths.map((width, i) => i === index ? newWidth : width * otherScale);
             fitColumnWidths(widths);
           }
 
