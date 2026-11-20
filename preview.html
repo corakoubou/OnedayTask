@@ -490,6 +490,7 @@
           <col style="width: 90px;" />
           <col style="width: 100px;" />
           <col style="width: 120px;" />
+          <col style="width: 120px;" />
         </colgroup>
 
         <thead>
@@ -509,6 +510,7 @@
             <th class="resizable">複製</th>
             <th class="resizable">分割</th>
             <th class="resizable">差引分割</th>
+            <th class="resizable">下と結合</th>
           </tr>
         </thead>
 
@@ -791,6 +793,7 @@
         <td><button type="button" class="btn-copy copy-btn" tabindex="-1">複製</button></td>
         <td><button type="button" class="btn-copy half-btn" tabindex="-1">分割</button></td>
         <td><button type="button" class="btn-copy split-btn" tabindex="-1">差引分割</button></td>
+        <td><button type="button" class="btn-copy merge-btn" tabindex="-1">下と結合</button></td>
       `;
 
       if (insertAfterRow && insertAfterRow.parentNode === tableBody) {
@@ -881,6 +884,7 @@
       const deleteBtn = tr.querySelector(".delete-btn");
       const copyBtn = tr.querySelector(".copy-btn");
 
+      tr.querySelector(".merge-btn").addEventListener("click", () => mergeWithNext(tr));
       tr.querySelector(".half-btn").addEventListener("click", () => splitTask(tr));
       tr.querySelector(".split-btn").addEventListener("click", () => splitTask(tr, true));
       [startInput, endInput, startDateInput, endDateInput].forEach(input => {
@@ -1054,6 +1058,35 @@
       if (start && end && end < start) {
         input.value = input.dataset.previousValue ?? "";
       }
+    }
+
+    function mergeWithNext(tr) {
+      const rows = getRows();
+      const index = rows.indexOf(tr);
+      const next = rows[index + 1];
+      if (!next) return;
+      const firstMinutes = getWorkMinutesValue(tr);
+      const secondMinutes = getWorkMinutesValue(next);
+      const startDate = tr.querySelector(".start-date").value || getCurrentDateString();
+      const startTime = tr.querySelector(".start-time").value;
+      if (!dateTimeToDate(startDate, startTime) || firstMinutes === null || secondMinutes === null) {
+        alert("結合するには、開始時刻と両方のタスクの作業時間を入力してください。");
+        return;
+      }
+      const total = firstMinutes + secondMinutes;
+      const end = addMinutesToDateTimeString(startDate, startTime, total);
+      tr.querySelector(".end-date").value = end.date;
+      tr.querySelector(".end-time").value = end.time;
+      tr.querySelector(".work-minutes-input").value = String(total);
+      const detail = next.dataset.taskDetail || "";
+      if (detail) tr.dataset.taskDetail = [tr.dataset.taskDetail, detail].filter(Boolean).join("\n\n");
+      if (next.querySelector(".insert-check").checked) setInsertPositionRow(tr);
+      if (activeDetailRow === next) closeTaskDetailPanel();
+      next.remove();
+      if (activeDetailRow === tr) taskDetailTextarea.value = tr.dataset.taskDetail || "";
+      refreshSyncCheckboxState();
+      applySyncFromIndex(index + 1);
+      saveAll();
     }
 
     function requestSplitMinutes(total) {
@@ -1312,6 +1345,7 @@
       rows.forEach((row, index) => {
         const syncCheck = row.querySelector(".sync-check");
         if (!syncCheck) return;
+        row.querySelector(".merge-btn").disabled = index === rows.length - 1;
 
         if (index === 0) {
           syncCheck.checked = false;
@@ -1812,6 +1846,9 @@
       if (!Array.isArray(widths)) return;
 
       const cols = colGroup.querySelectorAll("col");
+      if (widths.length < cols.length && widths.every(width => String(width).endsWith("%"))) {
+        while (widths.length < cols.length) widths.push(`${100 / cols.length}%`);
+      }
       widths.forEach((width, index) => {
         if (!cols[index] || !width) return;
         cols[index].style.width = width;
@@ -1832,7 +1869,7 @@
     }
 
     function resetColumnWidthsToDefault() {
-      const defaults = ["70px","90px","40px","130px","130px","130px","130px","300px","120px","120px","90px","90px","90px","100px","120px"];
+      const defaults = ["70px","90px","40px","130px","130px","130px","130px","300px","120px","120px","90px","90px","90px","100px","120px","120px"];
       const cols = colGroup.querySelectorAll("col");
 
       cols.forEach((col, index) => {
