@@ -447,10 +447,18 @@
       <h1>一日タスク管理</h1>
       <div class="mode-switch" role="group" aria-label="画面モード">
         <button id="taskModeBtn" type="button" aria-pressed="true" aria-controls="taskMode">タスク管理モード</button>
+        <button id="templateModeBtn" type="button" aria-pressed="false" aria-controls="templateMode">テンプレモード</button>
         <button id="settingsModeBtn" type="button" aria-pressed="false" aria-controls="settingsMode">設定モード</button>
         <button id="memoModeBtn" type="button" aria-pressed="false" aria-controls="memoMode">メモモード</button>
       </div>
     </header>
+    <section id="templateMode" aria-label="テンプレモード" hidden>
+      <h2>よく使うタスクのテンプレ</h2>
+      <p>変更は自動保存されます。作業時間は分で入力してください。テンプレの編集・削除は作成済みタスクに影響しません。</p>
+      <button id="addTemplateBtn" type="button">＋ テンプレを追加</button>
+      <div id="templateRows"></div>
+      <p id="templateSaveStatus" role="status"></p>
+    </section>
     <section id="settingsMode" aria-label="設定モード" hidden>
       <h2>通知の間隔</h2>
       <p>時間・分・秒で設定します（最大24時間）。変更は自動保存されます。</p>
@@ -485,6 +493,8 @@
       <button id="overdueNotifyToggleBtn" type="button" class="btn-notify-toggle">時間外通知ON</button>
       <button id="todoNotifyToggleBtn" type="button" class="btn-notify-toggle">未着手通知ON</button>
     </div>
+
+    <div id="templateButtons" aria-label="テンプレからタスクを追加" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;"></div>
 
     <div class="table-wrap" id="tableWrap">
       <div class="table-width-resizer" id="tableWidthResizer" title="表の横幅を変更"></div>
@@ -2409,15 +2419,19 @@
       function setMode(mode) {
         const memo = mode === "memo";
         const settings = mode === "settings";
-        if (memo || settings) closeTaskDetailPanel();
-        document.getElementById("taskMode").hidden = memo || settings;
+        const template = mode === "template";
+        document.getElementById("templateMode").hidden = !template;
+        document.getElementById("templateModeBtn").setAttribute("aria-pressed", String(template));
+        if (memo || settings || template) closeTaskDetailPanel();
+        document.getElementById("taskMode").hidden = memo || settings || template;
         document.getElementById("settingsMode").hidden = !settings;
         document.getElementById("settingsModeBtn").setAttribute("aria-pressed", String(settings));
         document.getElementById("memoMode").hidden = !memo;
-        taskButton.setAttribute("aria-pressed", String(!memo && !settings));
+        taskButton.setAttribute("aria-pressed", String(!memo && !settings && !template));
         memoButton.setAttribute("aria-pressed", String(memo));
-        try { localStorage.setItem(MODE_KEY, settings ? "settings" : memo ? "memo" : "task"); } catch {}
+        try { localStorage.setItem(MODE_KEY, template ? "template" : settings ? "settings" : memo ? "memo" : "task"); } catch {}
       }
+      document.getElementById("templateModeBtn").addEventListener("click", () => setMode("template"));
       document.getElementById("settingsModeBtn").addEventListener("click", () => setMode("settings"));
       taskButton.addEventListener("click", () => setMode("task"));
       memoButton.addEventListener("click", () => setMode("memo"));
@@ -2485,6 +2499,82 @@
       });
       notes.forEach(renderNote);
       try { setMode(localStorage.getItem(MODE_KEY)); } catch { setMode("task"); }
+    })();
+
+    (() => {
+      const key = "dailyTaskManager.templates";
+      const container = document.getElementById("templateRows");
+      const buttons = document.getElementById("templateButtons");
+      const status = document.getElementById("templateSaveStatus");
+      let templates = [];
+      try {
+        const saved = JSON.parse(localStorage.getItem(key) || "[]");
+        if (Array.isArray(saved)) templates = saved.filter(item => item && typeof item.name === "string" && typeof item.taskName === "string" && Number.isSafeInteger(item.minutes) && item.minutes > 0).map(item => ({ name: item.name, taskName: item.taskName, minutes: item.minutes, sync: !!item.sync, visible: item.visible !== false }));
+      } catch { status.textContent = "テンプレを読み込めませんでした。"; }
+      function save() {
+        try { localStorage.setItem(key, JSON.stringify(templates)); status.textContent = "自動保存済み"; }
+        catch { status.textContent = "保存できませんでした。ブラウザの保存設定を確認してください。"; }
+        renderButtons();
+      }
+      function createTask(item) {
+        const rows = getRows();
+        const after = getInsertPositionRow() || rows[rows.length - 1] || null;
+        const previousDate = after?.querySelector(".end-date").value;
+        const previousTime = after?.querySelector(".end-time").value;
+        const date = isValidDate(previousDate) ? previousDate : getCurrentDateString();
+        const time = isValidTime(previousTime) ? previousTime : getCurrentTimeString();
+        const end = addMinutesToDateTimeString(date, time, item.minutes);
+        const row = addRow({ startDate: date, startTime: time, endDate: end.date, endTime: end.time, taskName: item.taskName, workMinutesText: String(item.minutes), sync: item.sync, status: STATUS_TODO }, after);
+        applySyncFromIndex(getRows().indexOf(row) + 1);
+        saveAll();
+        row.querySelector(".task-name").focus();
+      }
+      function renderButtons() {
+        buttons.replaceChildren();
+        templates.filter(item => item.visible && item.name.trim()).forEach(item => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "template-task-btn";
+          button.textContent = item.name;
+          button.title = `${item.taskName || "タスク名未設定"}／${item.minutes}分／同期${item.sync ? "ON" : "OFF"}`;
+          button.addEventListener("click", () => createTask(item));
+          buttons.appendChild(button);
+        });
+      }
+      function renderRows() {
+        container.replaceChildren();
+        templates.forEach(item => {
+          const row = document.createElement("div");
+          row.className = "template-setting-row";
+          row.style.cssText = "display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:16px 0;border-bottom:1px solid var(--line)";
+          row.innerHTML = `<label>テンプレ名 <input class="template-name" type="text"></label><label>タスク名 <input class="template-task-name" type="text"></label><label>作業時間 <input class="template-minutes" type="number" min="1" step="1" required style="width:90px"> 分</label><label>同期 <input class="template-sync" type="checkbox"></label><label>表示 <input class="template-visible" type="checkbox"></label><button class="template-delete btn-danger" type="button">削除</button>`;
+          for (const [selector, property] of [[".template-name", "name"], [".template-task-name", "taskName"]]) {
+            const input = row.querySelector(selector);
+            input.value = item[property];
+            input.addEventListener("input", () => { item[property] = input.value; save(); });
+          }
+          const minutes = row.querySelector(".template-minutes");
+          minutes.value = item.minutes;
+          minutes.addEventListener("change", () => {
+            if (!minutes.checkValidity() || !Number.isSafeInteger(Number(minutes.value))) { minutes.reportValidity(); minutes.value = item.minutes; return; }
+            item.minutes = Number(minutes.value); save();
+          });
+          for (const property of ["sync", "visible"]) {
+            const input = row.querySelector(`.template-${property}`);
+            input.checked = item[property];
+            input.addEventListener("change", () => { item[property] = input.checked; save(); });
+          }
+          row.querySelector(".template-delete").addEventListener("click", () => {
+            templates.splice(templates.indexOf(item), 1); save(); renderRows();
+          });
+          container.appendChild(row);
+        });
+      }
+      document.getElementById("addTemplateBtn").addEventListener("click", () => {
+        templates.push({ name: `テンプレ${templates.length + 1}`, taskName: "", minutes: 30, sync: true, visible: true });
+        save(); renderRows(); container.lastElementChild.querySelector("input").focus();
+      });
+      renderRows(); renderButtons();
     })();
   </script>
 </body>
