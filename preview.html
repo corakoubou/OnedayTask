@@ -447,9 +447,19 @@
       <h1>一日タスク管理</h1>
       <div class="mode-switch" role="group" aria-label="画面モード">
         <button id="taskModeBtn" type="button" aria-pressed="true" aria-controls="taskMode">タスク管理モード</button>
+        <button id="settingsModeBtn" type="button" aria-pressed="false" aria-controls="settingsMode">設定モード</button>
         <button id="memoModeBtn" type="button" aria-pressed="false" aria-controls="memoMode">メモモード</button>
       </div>
     </header>
+    <section id="settingsMode" aria-label="設定モード" hidden>
+      <h2>通知の間隔</h2>
+      <p>秒単位で設定します。変更は自動保存されます。</p>
+      <p><label>時間内通知 <input id="insideInterval" type="number" min="1" max="86400" step="1" required> 秒</label></p>
+      <p><label>時間外通知 <input id="overdueInterval" type="number" min="1" max="86400" step="1" required> 秒</label></p>
+      <p><label>未着手開始通知 <input id="todoInterval" type="number" min="0" max="86400" step="1" required> 秒（0は開始時に1回のみ）</label></p>
+      <p>通知のON/OFFはタスク管理モードで切り替えます。ブラウザでこのページを開いている間に通知します。</p>
+      <p id="notificationSettingsStatus" role="status"></p>
+    </section>
     <section id="memoMode" aria-label="メモモード" hidden>
       <div class="memo-toolbar"><button id="addMemoBtn" type="button">＋ 付箋を追加</button>
         <p>上部をドラッグして移動／右下をドラッグしてサイズ変更。文字サイズ・内容・配置は自動保存されます。</p></div>
@@ -537,7 +547,7 @@
       ※ 作業時間欄は数字だけ入力し、右側の「分」は固定表示っす。作業時間を編集すると、予定開始＋作業時間で予定終了を書き換えるっす。<br />
       ※ 10/15/20/30/45/60分ボタンは、挿入位置チェックがあればその下へ、なければ末尾へ指定分数の行を追加するっす。<br />
       ※ 挿入位置チェックは移動列の右側にあり、1か所だけ付けられるっす。<br />
-      ※ テスト用に、仕掛中タスクは30秒ごとにWindows通知するっす。
+      ※ 通知の間隔は設定モードで変更できるっす。時間外通知には次の予定を最大3件表示するっす。
     </div>
 
     <div id="taskDetailPanel" class="task-detail-panel">
@@ -2070,8 +2080,24 @@
     }
 
 
-    const TASK_NOTIFY_INTERVAL_MS = 2 * 60 * 1000;
-    const OVERDUE_NOTIFY_INTERVAL_MS = 30 * 1000;
+    const NOTIFY_SETTINGS_KEY = "dailyTaskManager.notificationIntervals";
+    const notificationIntervals = { inside: 120, overdue: 30, todo: 0 };
+    try {
+      const saved = JSON.parse(localStorage.getItem(NOTIFY_SETTINGS_KEY) || "{}");
+      for (const key of Object.keys(notificationIntervals)) {
+        if (Number.isInteger(saved[key]) && saved[key] >= (key === "todo" ? 0 : 1) && saved[key] <= 86400) notificationIntervals[key] = saved[key];
+      }
+    } catch {}
+    for (const key of Object.keys(notificationIntervals)) {
+      const input = document.getElementById(`${key}Interval`);
+      input.value = notificationIntervals[key];
+      input.addEventListener("change", () => {
+        if (!input.checkValidity()) { input.reportValidity(); input.value = notificationIntervals[key]; return; }
+        notificationIntervals[key] = Number(input.value);
+        localStorage.setItem(NOTIFY_SETTINGS_KEY, JSON.stringify(notificationIntervals));
+        document.getElementById("notificationSettingsStatus").textContent = "通知間隔を保存しました。";
+      });
+    }
     const taskNotifyMap = new Map();
     const todoStartNotifyMap = new Map();
 
@@ -2146,8 +2172,8 @@
 
         const requiredInterval =
           position.kind === "after"
-            ? OVERDUE_NOTIFY_INTERVAL_MS
-            : TASK_NOTIFY_INTERVAL_MS;
+            ? notificationIntervals.overdue * 1000
+            : notificationIntervals.inside * 1000;
 
         if (nowMs - lastNotifiedAt < requiredInterval) {
           return;
@@ -2167,12 +2193,27 @@
         if (position.kind === "after") {
           showTaskNotification(
             "未完了タスク",
-            `${taskName}\n終了予定を過ぎています。未完了です。`,
+            `${taskName}\n終了予定を過ぎています。未完了です。${getNextTaskNotificationText(row)}`,
             "after"
           );
           taskNotifyMap.set(row, nowMs);
         }
       });
+    }
+
+    function getNextTaskNotificationText(row) {
+      const rows = getRows();
+      const next = rows.slice(rows.indexOf(row) + 1).filter(candidate => {
+        const status = candidate.querySelector(".btn-status").dataset.status;
+        return status === STATUS_TODO || status === STATUS_DOING;
+      }).slice(0, 3);
+      if (!next.length) return "\n次の予定はありません。";
+      return "\n次の予定：\n" + next.map(candidate => {
+        const date = candidate.querySelector(".start-date").value;
+        const time = candidate.querySelector(".start-time").value || "時刻未設定";
+        const name = candidate.querySelector(".task-name").value.trim() || "名称未入力のタスク";
+        return `${date ? date + " " : ""}${time} ${name}`;
+      }).join("\n");
     }
 
     function getNowPositionForTask(startDateValue, startValue, endDateValue, endValue, nowMinutes) {
@@ -2264,23 +2305,25 @@
       const notifiedKey = `${startDateValue} ${startValue}`;
       const lastKey = todoStartNotifyMap.get(row);
 
-      if (lastKey === notifiedKey) {
+      if (lastKey?.key === notifiedKey && (notificationIntervals.todo === 0 || Date.now() - lastKey.at < notificationIntervals.todo * 1000)) {
         return;
       }
 
       showTaskNotification(
         "開始予定タスク",
         `${taskName}\n開始予定時刻になりました。`,
-        "inside"
+        "todo"
       );
 
-      todoStartNotifyMap.set(row, notifiedKey);
+      todoStartNotifyMap.set(row, { key: notifiedKey, at: Date.now() });
     }
 
     function showTaskNotification(title, body, kind) {
       if (kind === "inside" && !insideNotifyEnabled) {
         return;
       }
+
+      if (kind === "todo" && !todoNotifyEnabled) return;
 
       if (kind === "after" && !overdueNotifyEnabled) {
         return;
@@ -2353,13 +2396,17 @@
       }
       function setMode(mode) {
         const memo = mode === "memo";
-        if (memo) closeTaskDetailPanel();
-        document.getElementById("taskMode").hidden = memo;
+        const settings = mode === "settings";
+        if (memo || settings) closeTaskDetailPanel();
+        document.getElementById("taskMode").hidden = memo || settings;
+        document.getElementById("settingsMode").hidden = !settings;
+        document.getElementById("settingsModeBtn").setAttribute("aria-pressed", String(settings));
         document.getElementById("memoMode").hidden = !memo;
-        taskButton.setAttribute("aria-pressed", String(!memo));
+        taskButton.setAttribute("aria-pressed", String(!memo && !settings));
         memoButton.setAttribute("aria-pressed", String(memo));
-        try { localStorage.setItem(MODE_KEY, memo ? "memo" : "task"); } catch {}
+        try { localStorage.setItem(MODE_KEY, settings ? "settings" : memo ? "memo" : "task"); } catch {}
       }
+      document.getElementById("settingsModeBtn").addEventListener("click", () => setMode("settings"));
       taskButton.addEventListener("click", () => setMode("task"));
       memoButton.addEventListener("click", () => setMode("memo"));
       function renderNote(note) {
