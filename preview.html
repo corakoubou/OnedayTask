@@ -41,17 +41,26 @@
       font-weight: 700;
     }
 
-    .toolbar {
+    .task-toolbars {
       position: sticky;
       top: 0;
       z-index: 100;
-      display: flex;
-      gap: 10px;
-      margin-bottom: 16px;
-      flex-wrap: wrap;
-      padding: 8px 0;
+      padding: 4px 0;
+      margin-bottom: 8px;
       background: var(--bg);
     }
+
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 0;
+      flex-wrap: wrap;
+      padding: 0;
+      background: var(--bg);
+    }
+
+    #templateButtons { display: flex; flex-wrap: wrap; gap: 6px 10px; margin-top: 4px; }
+    #templateButtons:empty { display: none; }
 
     button {
       border: none;
@@ -476,6 +485,7 @@
     </section>
     <section id="taskMode" aria-label="タスク管理モード">
 
+    <div class="task-toolbars">
     <div class="toolbar">
       <button id="addTaskBtn" type="button">タスク作成</button>
       <button type="button" class="duration-task-btn" data-minutes="10">10分</button>
@@ -494,7 +504,8 @@
       <button id="todoNotifyToggleBtn" type="button" class="btn-notify-toggle">未着手通知ON</button>
     </div>
 
-    <div id="templateButtons" aria-label="テンプレからタスクを追加" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;"></div>
+    <div id="templateButtons" aria-label="テンプレからタスクを追加"></div>
+    </div>
 
     <div class="table-wrap" id="tableWrap">
       <div class="table-width-resizer" id="tableWidthResizer" title="表の横幅を変更"></div>
