@@ -815,7 +815,8 @@
             <option value="">操作を選択 ▾</option>
             <option value="copy">複製</option>
             <option value="split">分割</option>
-            <option value="subtract">差引分割</option>
+            <option value="subtract">現在位置差引</option>
+            <option value="insertSubtract">挿入差引</option>
             <option value="merge">下と結合</option>
           </select>
         </td>
@@ -1012,6 +1013,8 @@
           splitTask(tr);
         } else if (action === "subtract") {
           splitTask(tr, true);
+        } else if (action === "insertSubtract") {
+          splitTask(tr, true, true);
         } else if (action === "merge") {
           if (!tr.nextElementSibling || !confirm("下のタスクと結合しますか？\n作業時間を合計し、この行の開始時刻・ステータスを引き継ぎます。")) return;
           mergeWithNext(tr);
@@ -1150,7 +1153,7 @@
       });
     }
 
-    async function splitTask(tr, custom = false) {
+    async function splitTask(tr, custom = false, insertInterruption = false) {
       const { start, end } = rowRange(tr);
       if (!start || !end || end - start < 120000) {
         alert("分割するには、開始・終了日時を入力し、2分以上の時間を設定してください。");
@@ -1175,7 +1178,11 @@
       const date = `${point.getFullYear()}-${String(point.getMonth() + 1).padStart(2, "0")}-${String(point.getDate()).padStart(2, "0")}`;
       const time = `${String(point.getHours()).padStart(2, "0")}:${String(point.getMinutes()).padStart(2, "0")}`;
       const data = readRowDataFromElement(tr);
-      const newRow = addRow({ ...data, startDate: date, startTime: time, status: STATUS_TODO, sync: true, insertPosition: false, workMinutesText: "" }, tr);
+      let insertAfter = tr;
+      if (insertInterruption) {
+        insertAfter = addRow({ startDate: date, startTime: time, endDate: date, endTime: time, taskName: "", taskDetail: "", status: STATUS_TODO, sync: true, insertPosition: false, workMinutesText: "0" }, tr);
+      }
+      const newRow = addRow({ ...data, startDate: date, startTime: time, status: STATUS_TODO, sync: true, insertPosition: false, workMinutesText: "" }, insertAfter);
       tr.querySelector(".end-date").value = date;
       tr.querySelector(".end-time").value = time;
       updateWorkMinutes(tr);
@@ -1183,6 +1190,7 @@
       refreshSyncCheckboxState();
       applySyncFromIndex(getRows().indexOf(newRow) + 1);
       saveAll();
+      if (insertInterruption) insertAfter.querySelector(".task-name").focus();
     }
 
     function handleTimeBlur(tr, inputElement) {
