@@ -453,10 +453,10 @@
     </header>
     <section id="settingsMode" aria-label="設定モード" hidden>
       <h2>通知の間隔</h2>
-      <p>秒単位で設定します。変更は自動保存されます。</p>
-      <p><label>時間内通知 <input id="insideInterval" type="number" min="1" max="86400" step="1" required> 秒</label></p>
-      <p><label>時間外通知 <input id="overdueInterval" type="number" min="1" max="86400" step="1" required> 秒</label></p>
-      <p><label>未着手開始通知 <input id="todoInterval" type="number" min="0" max="86400" step="1" required> 秒（0は開始時に1回のみ）</label></p>
+      <p>時間・分・秒で設定します（最大24時間）。変更は自動保存されます。</p>
+      <fieldset style="margin:16px 0;border:1px solid var(--line);border-radius:8px;padding:16px;"><legend>時間内通知</legend><label><input id="insideIntervalHours" aria-label="時間内通知の時間" type="number" min="0" max="24" step="1" required style="width:75px"> 時間</label> <label><input id="insideIntervalMinutes" aria-label="時間内通知の分" type="number" min="0" max="59" step="1" required style="width:75px"> 分</label> <label><input id="insideIntervalSeconds" aria-label="時間内通知の秒" type="number" min="0" max="59" step="1" required style="width:75px"> 秒</label><p>合計1秒以上で設定してください。</p></fieldset>
+      <fieldset style="margin:16px 0;border:1px solid var(--line);border-radius:8px;padding:16px;"><legend>時間外通知</legend><label><input id="overdueIntervalHours" aria-label="時間外通知の時間" type="number" min="0" max="24" step="1" required style="width:75px"> 時間</label> <label><input id="overdueIntervalMinutes" aria-label="時間外通知の分" type="number" min="0" max="59" step="1" required style="width:75px"> 分</label> <label><input id="overdueIntervalSeconds" aria-label="時間外通知の秒" type="number" min="0" max="59" step="1" required style="width:75px"> 秒</label><p>合計1秒以上で設定してください。</p></fieldset>
+      <fieldset style="margin:16px 0;border:1px solid var(--line);border-radius:8px;padding:16px;"><legend>未着手開始通知</legend><label><input id="todoIntervalHours" aria-label="未着手開始通知の時間" type="number" min="0" max="24" step="1" required style="width:75px"> 時間</label> <label><input id="todoIntervalMinutes" aria-label="未着手開始通知の分" type="number" min="0" max="59" step="1" required style="width:75px"> 分</label> <label><input id="todoIntervalSeconds" aria-label="未着手開始通知の秒" type="number" min="0" max="59" step="1" required style="width:75px"> 秒</label><p>すべて0の場合は、開始時に1回のみ通知します。</p></fieldset>
       <p>通知のON/OFFはタスク管理モードで切り替えます。ブラウザでこのページを開いている間に通知します。</p>
       <p id="notificationSettingsStatus" role="status"></p>
     </section>
@@ -2089,14 +2089,26 @@
       }
     } catch {}
     for (const key of Object.keys(notificationIntervals)) {
-      const input = document.getElementById(`${key}Interval`);
-      input.value = notificationIntervals[key];
-      input.addEventListener("change", () => {
-        if (!input.checkValidity()) { input.reportValidity(); input.value = notificationIntervals[key]; return; }
-        notificationIntervals[key] = Number(input.value);
+      const inputs = ["Hours", "Minutes", "Seconds"].map(unit => document.getElementById(`${key}Interval${unit}`));
+      const seconds = notificationIntervals[key];
+      inputs[0].value = Math.floor(seconds / 3600);
+      inputs[1].value = Math.floor(seconds % 3600 / 60);
+      inputs[2].value = seconds % 60;
+      inputs.forEach(input => input.addEventListener("change", () => {
+        const status = document.getElementById("notificationSettingsStatus");
+        if (inputs.some(field => !field.checkValidity())) {
+          status.textContent = "時間は0〜24、分・秒は0〜59の整数を入力してください。変更は保存されていません。";
+          return;
+        }
+        const total = Number(inputs[0].value) * 3600 + Number(inputs[1].value) * 60 + Number(inputs[2].value);
+        if (total < (key === "todo" ? 0 : 1) || total > 86400) {
+          status.textContent = "通知間隔は1秒以上24時間以内で設定してください（未着手開始通知のみ0を指定可能）。変更は保存されていません。";
+          return;
+        }
+        notificationIntervals[key] = total;
         localStorage.setItem(NOTIFY_SETTINGS_KEY, JSON.stringify(notificationIntervals));
-        document.getElementById("notificationSettingsStatus").textContent = "通知間隔を保存しました。";
-      });
+        status.textContent = "通知間隔を保存しました。";
+      }));
     }
     const taskNotifyMap = new Map();
     const todoStartNotifyMap = new Map();
