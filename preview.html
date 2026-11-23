@@ -600,6 +600,22 @@
     </div>
   </div>
 
+  <dialog id="createTaskDialog" aria-labelledby="createTaskTitle" style="background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:24px;max-width:90vw;">
+    <form id="createTaskForm">
+      <h2 id="createTaskTitle">タスク作成</h2>
+      <p><label>予定開始日 <input id="createStartDate" type="date" required></label></p>
+      <p><label>予定開始時刻 <input id="createStartTime" type="time" required></label></p>
+      <p><label>作業時間 <input id="createMinutes" type="number" min="0" step="1" value="30" required> 分</label></p>
+      <p><label><input id="createSync" type="checkbox"> 前の行の終了日時に同期</label></p>
+      <p id="createSyncHint"></p>
+      <p><label><input id="createUseEnd" type="checkbox"> 終了日時を入力する</label></p>
+      <p><label>予定終了日 <input id="createEndDate" type="date" required disabled></label></p>
+      <p><label>予定終了時刻 <input id="createEndTime" type="time" required disabled></label></p>
+      <p id="createTaskError" role="alert" style="color:#ff9999"></p>
+      <button type="submit">行を追加</button>
+      <button id="createTaskCancel" type="button">キャンセル</button>
+    </form>
+  </dialog>
   <dialog id="durationSplitDialog" aria-labelledby="durationSplitTitle" style="background:#252525;color:#eee;border:1px solid #666;border-radius:10px;padding:24px;max-width:90vw;">
     <form id="durationSplitForm">
       <h2 id="durationSplitTitle">作業時間を分割</h2>
@@ -662,20 +678,73 @@
     let detailPanelEnabled = true;
     let statusChoiceTargetRow = null;
 
-    addTaskBtn.addEventListener("click", () => {
-      const insertAfterRow = getInsertPositionRow();
-      const newRow = addRow(null, insertAfterRow, true);
-      refreshSyncCheckboxState();
-      applySyncFromRowIfNeeded(newRow);
-      saveAll();
+    addTaskBtn.addEventListener("click", openCreateTaskDialog);
 
-      if (newRow) {
-        const taskInput = newRow.querySelector(".task-name");
-        if (taskInput) {
-          taskInput.focus();
+    function openCreateTaskDialog() {
+      const dialog = document.getElementById("createTaskDialog");
+      const form = document.getElementById("createTaskForm");
+      const field = name => document.getElementById(`create${name}`);
+      const insertAfter = getInsertPositionRow();
+      const rows = getRows();
+      const previous = insertAfter || rows[rows.length - 1];
+      form.reset();
+      field("StartDate").value = getCurrentDateString();
+      field("StartTime").value = getCurrentTimeString();
+      field("Sync").disabled = !previous;
+      field("Sync").checked = !!previous;
+      field("TaskError").textContent = "";
+      function updateSync() {
+        const synced = field("Sync").checked && previous;
+        if (synced) {
+          field("StartDate").value = previous.querySelector(".end-date").value || getCurrentDateString();
+          field("StartTime").value = previous.querySelector(".end-time").value || getCurrentTimeString();
+        }
+        field("StartDate").readOnly = !!synced;
+        field("StartTime").readOnly = !!synced;
+        field("SyncHint").textContent = synced ? "開始日時を編集する場合は、同期のチェックを外してください。" : "";
+      }
+      function updateEndMode() {
+        const useEnd = field("UseEnd").checked;
+        field("EndDate").disabled = field("EndTime").disabled = !useEnd;
+        field("Minutes").disabled = useEnd;
+        if (useEnd && !field("EndDate").value) {
+          const end = addMinutesToDateTimeString(field("StartDate").value, field("StartTime").value, Number(field("Minutes").value) || 0);
+          field("EndDate").value = end.date;
+          field("EndTime").value = end.time;
         }
       }
-    });
+      field("Sync").onchange = updateSync;
+      field("UseEnd").onchange = updateEndMode;
+      updateSync(); updateEndMode();
+      form.onsubmit = event => {
+        event.preventDefault();
+        if (!form.reportValidity()) return;
+        const startDate = field("StartDate").value, startTime = field("StartTime").value;
+        const start = dateTimeToDate(startDate, startTime);
+        let minutes = Number(field("Minutes").value);
+        let end;
+        if (field("UseEnd").checked) {
+          const endDate = field("EndDate").value, endTime = field("EndTime").value;
+          const finish = dateTimeToDate(endDate, endTime);
+          if (!start || !finish || finish < start) {
+            field("TaskError").textContent = "終了日時は開始日時以降にしてください。";
+            return;
+          }
+          minutes = Math.round((finish - start) / 60000);
+          end = { date: endDate, time: endTime };
+        } else {
+          if (!start || !Number.isSafeInteger(minutes) || minutes < 0) return;
+          end = addMinutesToDateTimeString(startDate, startTime, minutes);
+        }
+        const row = addRow({ startDate, startTime, endDate: end.date, endTime: end.time, workMinutesText: String(minutes), sync: field("Sync").checked, status: STATUS_TODO }, insertAfter);
+        applySyncFromIndex(getRows().indexOf(row) + 1);
+        saveAll();
+        dialog.close();
+        row.querySelector(".task-name").focus();
+      };
+      document.getElementById("createTaskCancel").onclick = () => dialog.close();
+      dialog.showModal();
+    }
 
     durationTaskBtns.forEach((button) => {
       button.addEventListener("click", () => {
@@ -826,8 +895,8 @@
             <option value="">操作を選択 ▾</option>
             <option value="copy">複製</option>
             <option value="split">分割</option>
-            <option value="subtract">繰上分割</option>
-            <option value="insertSubtract">挿入分割</option>
+            <option value="subtract">コピーせずに現在から分割</option>
+            <option value="insertSubtract">空行を入れて現在から分割</option>
             <option value="merge">下と結合</option>
           </select>
         </td>
