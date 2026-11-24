@@ -626,6 +626,7 @@
       <button type="button" class="duration-task-btn" data-minutes="60">60分</button>
       <button id="resetAllBtn" type="button" class="btn-danger">保存データ初期化</button>
       <button id="syncAllBtn" type="button" class="btn-sync">同期</button>
+      <button id="adjustCurrentTaskBtn" type="button" class="btn-sync" title="現在時刻を含む予定を完了調整します。開始と終了が同時刻なら終了する側を優先します。">現在時刻のタスクを完了調整</button>
       <button id="exportCsvBtn" type="button" class="btn-csv">CSV出力</button>
       <button id="notifyPermissionBtn" type="button">通知許可</button>
       <button id="toggleDetailPanelBtn" type="button">詳細：表示</button>
@@ -999,6 +1000,17 @@
 
       refreshSyncCheckboxState();
       saveAll();
+    });
+
+    document.getElementById("adjustCurrentTaskBtn").addEventListener("click", () => {
+      const now = new Date();
+      now.setSeconds(0, 0);
+      const row = findTaskAtTime(now);
+      if (!row) { alert("現在時刻を含む予定がありません。開始・終了日時を確認してください。"); return; }
+      const name = row.querySelector(".task-name").value.trim() || "名称未入力のタスク";
+      const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+      if (!confirm(`「${name}」を完了調整しますか？\n予定終了を${formatDateString(now)} ${time}に変更し、後続の同期行にも反映します。`)) return;
+      withEditor(false, () => applyDoneAdjustment(row, now));
     });
 
     syncAllBtn.addEventListener("click", () => {
@@ -1894,14 +1906,32 @@
       statusChoiceModal.setAttribute("aria-hidden", "true");
     }
 
-    function applyDoneAdjustment(tr) {
+    function findTaskAtTime(time) {
+      const now = new Date(time);
+      now.setSeconds(0, 0);
+      const candidates = getRows(mainEditor.tableBody).map(row => ({
+        row,
+        start: dateTimeToDate(row.querySelector(".start-date").value, row.querySelector(".start-time").value),
+        end: dateTimeToDate(row.querySelector(".end-date").value, row.querySelector(".end-time").value)
+      })).filter(item => item.start && item.end && item.start <= now && now <= item.end);
+      return (candidates.find(item => item.end.getTime() === now.getTime()) || candidates[0])?.row || null;
+    }
+
+    function applyDoneAdjustment(tr, adjustmentTime = new Date()) {
       const endDateInput = tr.querySelector(".end-date");
       const endInput = tr.querySelector(".end-time");
 
-      endInput.value = getCurrentTimeString();
+      const now = new Date(adjustmentTime);
+      now.setSeconds(0, 0);
+      const start = dateTimeToDate(tr.querySelector(".start-date").value, tr.querySelector(".start-time").value);
+      if (!isBulkEditor && (!start || now < start)) {
+        alert("現在時刻が予定開始より前のため、このタスクは完了調整できません。ヘッダーの「現在時刻のタスクを完了調整」を使用してください。");
+        return;
+      }
+      endInput.value = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
       endDateInput.value = isBulkEditor
         ? dateAfterDays(tr.querySelector(".start-date").value, endInput.value < tr.querySelector(".start-time").value ? 1 : 0)
-        : getCurrentDateString();
+        : formatDateString(now);
 
       updateWorkMinutes(tr);
       setStatus(tr, STATUS_DONE_ADJUSTED);
