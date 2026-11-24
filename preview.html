@@ -59,8 +59,8 @@
       background: var(--bg);
     }
 
-    #templateButtons { display: flex; flex-wrap: wrap; gap: 6px 10px; margin-top: 4px; }
-    #templateButtons:empty { display: none; }
+    #templateButtons, #bulkTemplateButtons { display: flex; flex-wrap: wrap; gap: 6px 10px; margin-top: 4px; }
+    #templateButtons:empty, #bulkTemplateButtons:empty { display: none; }
 
     button {
       border: none;
@@ -203,8 +203,8 @@
       table-layout: fixed;
     }
 
-    #taskTable th { white-space: normal; overflow-wrap: anywhere; }
-    #taskTable td > button { width: 100%; min-width: 0; padding: 10px 2px; overflow-wrap: anywhere; }
+    #taskTable th, #bulkTable th { white-space: normal; overflow-wrap: anywhere; }
+    #taskTable td > button, #bulkTable td > button { width: 100%; min-width: 0; padding: 10px 2px; overflow-wrap: anywhere; }
 
     thead { background: var(--panel2); }
 
@@ -235,7 +235,7 @@
 
     input[type="text"],
     #createTaskDialog input[type="date"], #createTaskDialog input[type="time"], #createTaskDialog input[type="number"],
-    #bulkTable input, #bulkTable textarea {
+    #bulkTable input[type="text"] {
       width: 100%;
       background: #1b1b22;
       color: var(--text);
@@ -259,9 +259,7 @@
     #createTaskDialog::backdrop { background: rgba(0, 0, 0, .58); }
     #createTaskCancel { background: #555563; }
     #bulkTable th { white-space: normal; overflow-wrap: anywhere; }
-    #bulkTable textarea { display: block; height: 35px; resize: vertical; font-family: inherit; }
     #bulkTable td > button { width: 100%; min-width: 0; padding: 10px 2px; overflow-wrap: anywhere; }
-    #bulkTable .work-minutes-wrap { gap: 2px; }
     #bulkExportSource, #bulkMode > fieldset {
       background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 8px;
     }
@@ -440,7 +438,7 @@
 
     .col-resizer:hover { background: rgba(74, 144, 226, 0.35); }
     .col-resizer.active { background: rgba(74, 144, 226, 0.55); }
-  
+
 
     .sync-overlap{
       background:#7a2020 !important;
@@ -488,22 +486,65 @@
       </div>
     </header>
     <section id="bulkMode" aria-label="一括データ登録モード" hidden>
-      <h2>一括データ登録・出力</h2>
-      <p>登録用の行を作成するか、CSVを読み込んで編集できます。「末尾に一括追加」でタスク管理に追加します。</p>
-      <p>日時を省略したデータも利用できます。開始日時と作業時間があり終了日時が空の場合は、終了日時を計算します。それ以外の省略項目は空欄で追加します。追加するタスクは未着手・同期OFFです。</p>
-      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">
-        <button id="bulkAddRow" type="button">＋ 登録用の行を追加</button>
-        <label>CSVを読み込む <input id="bulkFile" type="file" accept=".csv,text/csv"></label>
+      <div class="task-toolbars">
+        <div class="toolbar">
+          <button id="bulkAddTask" type="button">タスク作成</button>
+          <button type="button" class="bulk-duration-task-btn" data-minutes="10">10分</button>
+          <button type="button" class="bulk-duration-task-btn" data-minutes="15">15分</button>
+          <button type="button" class="bulk-duration-task-btn" data-minutes="20">20分</button>
+          <button type="button" class="bulk-duration-task-btn" data-minutes="30">30分</button>
+          <button type="button" class="bulk-duration-task-btn" data-minutes="45">45分</button>
+          <button type="button" class="bulk-duration-task-btn" data-minutes="60">60分</button>
+
+          <button id="bulkReset" type="button" class="btn-danger">登録用データ初期化</button>
+          <button id="bulkSync" type="button" class="btn-sync">同期</button>
+          <label>CSVを読み込む <input id="bulkFile" type="file" accept=".csv,text/csv"></label>
+          <button id="bulkImport" type="button">末尾に一括追加</button>
+        </div>
+        <div id="bulkTemplateButtons" class="template-buttons" aria-label="テンプレから登録用タスクを追加"></div>
       </div>
-      <p id="bulkDraftInfo"></p>
-      <div class="table-wrap">
-        <table id="bulkTable" aria-label="一括登録用タスク">
-          <colgroup><col style="width:15%"><col style="width:15%"><col style="width:10%"><col style="width:10%"><col style="width:20%"><col style="width:8%"><col style="width:15%"><col style="width:7%"></colgroup>
-          <thead><tr><th>予定開始日</th><th>予定終了日</th><th>予定開始</th><th>予定終了</th><th>タスク</th><th>作業時間</th><th>タスク詳細</th><th>削除</th></tr></thead>
-          <tbody id="bulkDraftRows"></tbody>
-        </table>
-      </div>
-      <p><button id="bulkImport" type="button">末尾に一括追加</button></p>
+      <p id="bulkDraftInfo">タスク管理と同じ操作で登録用データを編集できます。登録用の行は別に自動保存されます。</p>
+    <div class="table-wrap" id="bulkTableWrap">
+      <div class="table-width-resizer" id="bulkTableWidthResizer" title="表の横幅を変更"></div>
+
+      <table id="bulkTable">
+        <colgroup id="bulkColGroup">
+          <col style="width: 70px;" />
+          <col style="width: 90px;" />
+          <col style="width: 40px;" />
+          <col style="width: 130px;" />
+          <col style="width: 130px;" />
+          <col style="width: 130px;" />
+          <col style="width: 130px;" />
+          <col style="width: 300px;" />
+          <col style="width: 120px;" />
+          <col style="width: 120px;" />
+          <col style="width: 90px;" />
+          <col style="width: 90px;" />
+          <col style="width: 160px;" />
+        </colgroup>
+
+        <thead>
+          <tr>
+            <th class="resizable">移動</th>
+            <th class="resizable">挿入位置</th>
+            <th class="resizable">曜</th>
+            <th class="resizable">予定開始日</th>
+            <th class="resizable">予定終了日</th>
+            <th class="resizable">予定開始</th>
+            <th class="resizable">予定終了</th>
+            <th class="resizable">タスク</th>
+            <th class="resizable">状態</th>
+            <th class="resizable">作業時間</th>
+            <th class="resizable">同期</th>
+            <th class="resizable">削除</th>
+            <th class="resizable">操作</th>
+          </tr>
+        </thead>
+
+        <tbody id="bulkDraftRows"></tbody>
+      </table>
+    </div>
       <h3>一括データ出力（CSV）</h3>
       <p><label>出力するデータ <select id="bulkExportSource"><option value="tasks">タスク管理の全行</option><option value="draft">登録用の行</option></select></label></p>
       <fieldset><legend>出力する項目</legend><div id="bulkExportFields" style="display:flex;flex-wrap:wrap;gap:12px"></div></fieldset>
@@ -694,8 +735,8 @@
     const STATUS_DONE = "完了";
     const STATUS_DONE_ADJUSTED = "完了調整";
 
-    const table = document.getElementById("taskTable");
-    const tableBody = document.getElementById("taskTableBody");
+    let table = document.getElementById("taskTable");
+    let tableBody = document.getElementById("taskTableBody");
     const addTaskBtn = document.getElementById("addTaskBtn");
     const durationTaskBtns = document.querySelectorAll(".duration-task-btn");
     const resetAllBtn = document.getElementById("resetAllBtn");
@@ -705,9 +746,9 @@
     const insideNotifyToggleBtn = document.getElementById("insideNotifyToggleBtn");
     const overdueNotifyToggleBtn = document.getElementById("overdueNotifyToggleBtn");
     const todoNotifyToggleBtn = document.getElementById("todoNotifyToggleBtn");
-    const colGroup = document.getElementById("taskColGroup");
-    const tableWrap = document.getElementById("tableWrap");
-    const tableWidthResizer = document.getElementById("tableWidthResizer");
+    let colGroup = document.getElementById("taskColGroup");
+    let tableWrap = document.getElementById("tableWrap");
+    let tableWidthResizer = document.getElementById("tableWidthResizer");
     const taskDetailPanel = document.getElementById("taskDetailPanel");
     const taskDetailTitle = document.getElementById("taskDetailTitle");
     const taskDetailTextarea = document.getElementById("taskDetailTextarea");
@@ -719,6 +760,26 @@
     const statusChoiceAdjustBtn = document.getElementById("statusChoiceAdjustBtn");
     const statusChoiceCancelBtn = document.getElementById("statusChoiceCancelBtn");
 
+
+    const mainEditor = { table, tableBody, colGroup, tableWrap, tableWidthResizer };
+    const bulkEditor = {
+      table: document.getElementById("bulkTable"), tableBody: document.getElementById("bulkDraftRows"),
+      colGroup: document.getElementById("bulkColGroup"), tableWrap: document.getElementById("bulkTableWrap"),
+      tableWidthResizer: document.getElementById("bulkTableWidthResizer")
+    };
+    let isBulkEditor = false;
+    function selectEditor(bulk) {
+      isBulkEditor = bulk;
+      ({ table, tableBody, colGroup, tableWrap, tableWidthResizer } = bulk ? bulkEditor : mainEditor);
+    }
+    function withEditor(bulk, callback) {
+      const previous = isBulkEditor;
+      selectEditor(bulk);
+      try { return callback(); } finally { selectEditor(previous); }
+    }
+    function editorStorageKey(key) {
+      return isBulkEditor ? (key === STORAGE_KEY_ROWS ? "dailyTaskManager.bulkDraft" : key + ".bulk") : key;
+    }
 
     let dragRow = null;
     let insideNotifyEnabled = localStorage.getItem(STORAGE_KEY_INSIDE_NOTIFY_ENABLED) !== "false";
@@ -807,9 +868,9 @@
       const ok = confirm("保存データを初期化しますか？");
       if (!ok) return;
 
-      localStorage.removeItem(STORAGE_KEY_ROWS);
-      localStorage.removeItem(STORAGE_KEY_COL_WIDTHS);
-      localStorage.removeItem(STORAGE_KEY_TABLE_WIDTH);
+      localStorage.removeItem(editorStorageKey(STORAGE_KEY_ROWS));
+      localStorage.removeItem(editorStorageKey(STORAGE_KEY_COL_WIDTHS));
+      localStorage.removeItem(editorStorageKey(STORAGE_KEY_TABLE_WIDTH));
 
       tableBody.innerHTML = "";
       resetColumnWidthsToDefault();
@@ -1432,7 +1493,7 @@
     }
 
     function openTaskDetailPanel(row) {
-      if(!detailPanelEnabled){return;}
+      if(isBulkEditor || !detailPanelEnabled){return;}
       activeDetailRow = row;
 
       updateTaskDetailPanelTitle(row);
@@ -1453,8 +1514,8 @@
       taskDetailTitle.textContent = row.querySelector(".task-name").value.trim() || "名称未入力のタスク";
     }
 
-    function getRows() {
-      return [...tableBody.querySelectorAll("tr")];
+    function getRows(body = tableBody) {
+      return [...body.querySelectorAll("tr")];
     }
 
     function getInsertPositionRow() {
@@ -1552,7 +1613,7 @@
         endDate: tr.querySelector(".end-date").value,
         endTime: tr.querySelector(".end-time").value,
         taskName: tr.querySelector(".task-name").value,
-        taskDetail: tr.dataset.taskDetail || "",
+        taskDetail: tr.closest("#bulkDraftRows") ? "" : tr.dataset.taskDetail || "",
         status: tr.querySelector(".btn-status").dataset.status || getStatusFromButton(tr.querySelector(".btn-status")),
         sync: tr.querySelector(".sync-check").checked,
         insertPosition: tr.querySelector(".insert-check").checked,
@@ -1566,7 +1627,7 @@
       tr.querySelector(".end-date").value = data.endDate || "";
       tr.querySelector(".end-time").value = data.endTime || "";
       tr.querySelector(".task-name").value = data.taskName || "";
-      tr.dataset.taskDetail = data.taskDetail || "";
+      tr.dataset.taskDetail = isBulkEditor ? "" : data.taskDetail || "";
       updateStartWeekday(tr);
       tr.querySelector(".sync-check").checked = !!data.sync;
       tr.querySelector(".insert-check").checked = !!data.insertPosition;
@@ -1957,17 +2018,17 @@
 
     function saveRows() {
       const rows = getRows().map((tr) => readRowDataFromElement(tr));
-      localStorage.setItem(STORAGE_KEY_ROWS, JSON.stringify(rows));
+      localStorage.setItem(editorStorageKey(STORAGE_KEY_ROWS), JSON.stringify(rows));
     }
 
     function saveColumnWidths() {
       const cols = [...colGroup.querySelectorAll("col")].map((col) => col.style.width || "");
-      localStorage.setItem(STORAGE_KEY_COL_WIDTHS, JSON.stringify(cols));
+      localStorage.setItem(editorStorageKey(STORAGE_KEY_COL_WIDTHS), JSON.stringify(cols));
     }
 
     function saveTableWidth() {
       const width = tableWrap.style.width || "";
-      localStorage.setItem(STORAGE_KEY_TABLE_WIDTH, width);
+      localStorage.setItem(editorStorageKey(STORAGE_KEY_TABLE_WIDTH), width);
     }
 
     function loadAll() {
@@ -1982,7 +2043,7 @@
     }
 
     function loadRows() {
-      const raw = localStorage.getItem(STORAGE_KEY_ROWS);
+      const raw = localStorage.getItem(editorStorageKey(STORAGE_KEY_ROWS));
       if (!raw) return;
 
       let rows;
@@ -1999,7 +2060,7 @@
     }
 
     function loadColumnWidths() {
-      const raw = localStorage.getItem(STORAGE_KEY_COL_WIDTHS);
+      const raw = localStorage.getItem(editorStorageKey(STORAGE_KEY_COL_WIDTHS));
       if (!raw) return;
 
       let widths;
@@ -2027,7 +2088,7 @@
     }
 
     function loadTableWidth() {
-      const width = localStorage.getItem(STORAGE_KEY_TABLE_WIDTH);
+      const width = localStorage.getItem(editorStorageKey(STORAGE_KEY_TABLE_WIDTH));
       if (!width) return;
       tableWrap.style.width = width;
     }
@@ -2298,7 +2359,7 @@
       const nowMinutes = now.getHours() * 60 + now.getMinutes();
       const nowMs = Date.now();
 
-      getRows().forEach((row, index) => {
+      getRows(mainEditor.tableBody).forEach((row, index) => {
         const statusButton = row.querySelector(".btn-status");
         const status = statusButton.dataset.status || getStatusFromButton(statusButton);
 
@@ -2362,7 +2423,7 @@
     }
 
     function getNextTaskNotificationText(row) {
-      const rows = getRows();
+      const rows = getRows(mainEditor.tableBody);
       const next = rows.slice(rows.indexOf(row) + 1).filter(candidate => {
         const status = candidate.querySelector(".btn-status").dataset.status;
         return status === STATUS_TODO || status === STATUS_DOING;
@@ -2528,6 +2589,9 @@
     enableColumnResize();
     enableTableWidthResize();
     loadAll();
+    withEditor(true, () => {
+      enableColumnResize(); enableTableWidthResize(); loadAll();
+    });
     startTaskNotificationTimer();
   </script>
   <script>
@@ -2559,6 +2623,7 @@
         const settings = mode === "settings";
         const template = mode === "template";
         const bulk = mode === "bulk";
+        selectEditor(bulk);
         document.getElementById("bulkMode").hidden = !bulk;
         document.getElementById("bulkModeBtn").setAttribute("aria-pressed", String(bulk));
         document.getElementById("templateMode").hidden = !template;
@@ -2673,6 +2738,7 @@
       }
       function renderButtons() {
         buttons.replaceChildren();
+        document.getElementById("bulkTemplateButtons").replaceChildren();
         templates.filter(item => item.visible && item.name.trim()).forEach(item => {
           const button = document.createElement("button");
           button.type = "button";
@@ -2681,6 +2747,9 @@
           button.title = `${item.taskName || "タスク名未設定"}／${item.minutes}分／同期${item.sync ? "ON" : "OFF"}`;
           button.addEventListener("click", () => createTask(item));
           buttons.appendChild(button);
+          const bulkButton = button.cloneNode(true);
+          bulkButton.addEventListener("click", () => createTask(item));
+          document.getElementById("bulkTemplateButtons").appendChild(bulkButton);
         });
       }
       function renderRows() {
@@ -2720,14 +2789,11 @@
     })();
     (() => {
       const fields = [
-        ["startDate", "予定開始日", "date"], ["startTime", "予定開始", "time"],
-        ["endDate", "予定終了日", "date"], ["endTime", "予定終了", "time"],
-        ["workMinutesText", "作業時間", "number"], ["taskName", "タスク", "text"], ["taskDetail", "タスク詳細", "textarea"]
+        ["startDate", "予定開始日"], ["startTime", "予定開始"], ["endDate", "予定終了日"], ["endTime", "予定終了"],
+        ["workMinutesText", "作業時間"], ["taskName", "タスク"], ["sync", "同期"], ["status", "状態"]
       ];
-      const draftKey = "dailyTaskManager.bulkDraft";
       const status = document.getElementById("bulkStatus");
-      const container = document.getElementById("bulkDraftRows");
-      let draft = [];
+      function readDraft() { return getRows(bulkEditor.tableBody).map(readRowDataFromElement); }
       function normalize(data, index) {
         if (!data || typeof data !== "object") throw new Error(`${index + 1}行目の形式が不正です。`);
         const row = {};
@@ -2748,43 +2814,10 @@
           if (!isValidDate(calculated.date)) throw new Error(`${index + 1}行目：作業時間が大きすぎます。`);
           row.endDate = calculated.date; row.endTime = calculated.time;
         }
+        row.sync = data.sync === true || data.sync === "ON" || data.sync === "true";
+        row.status = [STATUS_TODO, STATUS_DOING, STATUS_DONE, STATUS_DONE_ADJUSTED].includes(data.status) ? data.status : STATUS_TODO;
+        row.taskDetail = "";
         return row;
-      }
-      function saveDraft() {
-        try { localStorage.setItem(draftKey, JSON.stringify(draft)); status.textContent = "登録用の行を自動保存しました。"; }
-        catch { status.textContent = "登録用データを保存できませんでした。"; }
-      }
-      function render() {
-        container.replaceChildren();
-        document.getElementById("bulkDraftInfo").textContent = `登録用：${draft.length}行`;
-        document.getElementById("bulkImport").disabled = draft.length === 0;
-        draft.forEach((row, index) => {
-          const group = document.createElement("tr");
-          const displayOrder = ["startDate", "endDate", "startTime", "endTime", "taskName", "workMinutesText", "taskDetail"];
-          displayOrder.map(key => fields.find(field => field[0] === key)).forEach(([key, title, type]) => {
-            const cell = document.createElement("td");
-            const input = document.createElement(type === "textarea" ? "textarea" : "input");
-            if (type !== "textarea") input.type = type;
-            if (type === "number") { input.min = "0"; input.step = "1"; }
-            input.setAttribute("aria-label", title); input.dataset.field = key;
-            if (type === "date") input.className = "date-input";
-            if (type === "time") input.className = "time-input";
-            if (key === "taskName") input.className = "task-input";
-            if (type === "number") input.className = "work-minutes-input";
-            input.value = row[key] || "";
-            input.addEventListener("input", () => { row[key] = input.value; saveDraft(); });
-            if (type === "number") {
-              const wrap = document.createElement("div"); wrap.className = "work-minutes-wrap";
-              const unit = document.createElement("span"); unit.className = "work-minutes-label"; unit.textContent = "分";
-              wrap.append(input, unit); cell.appendChild(wrap);
-            } else cell.appendChild(input);
-            group.appendChild(cell);
-          });
-          const remove = document.createElement("button"); remove.type = "button"; remove.textContent = "削除"; remove.setAttribute("aria-label", `登録用の${index + 1}行目を削除`); remove.className = "btn-danger";
-          remove.onclick = () => { draft.splice(index, 1); saveDraft(); render(); };
-          const deleteCell = document.createElement("td"); deleteCell.appendChild(remove);
-          group.appendChild(deleteCell); container.appendChild(group);
-        });
       }
       // Quoted fields may contain commas, CRLF, and escaped double quotes.
       function parseCsv(text) {
@@ -2807,7 +2840,13 @@
         if (value || row.length || closed) { row.push(value); rows.push(row); }
         return rows;
       }
-      document.getElementById("bulkAddRow").onclick = () => { draft.push(Object.fromEntries(fields.map(([key]) => [key, ""]))); saveDraft(); render(); };
+      document.getElementById("bulkAddTask").onclick = () => withEditor(true, openCreateTaskDialog);
+      document.querySelectorAll(".bulk-duration-task-btn").forEach(button => button.addEventListener("click", () => withEditor(true, () => addDurationTaskRow(Number(button.dataset.minutes)))));
+      document.getElementById("bulkSync").onclick = () => withEditor(true, runFullSync);
+      document.getElementById("bulkReset").onclick = () => {
+        if (!confirm("登録用データを初期化しますか？タスク管理の行には影響しません。")) return;
+        withEditor(true, () => { tableBody.replaceChildren(); resetColumnWidthsToDefault(); resetTableWidthToDefault(); saveAll(); });
+      };
       document.getElementById("bulkFile").addEventListener("change", async event => {
         const file = event.target.files[0]; if (!file) return;
         try {
@@ -2821,21 +2860,25 @@
             return normalize(Object.fromEntries(recognized.map(([key, title]) => [key, values[headers.indexOf(title)]])), index);
           });
           if (!loaded.length) throw new Error("読み込むタスクがありません。");
-          draft.push(...loaded); saveDraft(); render();
+          withEditor(true, () => {
+            loaded.forEach(row => addRow(row));
+            refreshSyncCheckboxState(); normalizeInsertPositionState(); saveAll();
+          });
           status.textContent = `${loaded.length}行を登録用に読み込みました。内容を確認して「末尾に一括追加」を押してください。`;
         } catch (error) { status.textContent = error.message; }
         event.target.value = "";
       });
       document.getElementById("bulkImport").onclick = () => {
         try {
-          const normalized = draft.map(normalize); // Validate all rows before changing tasks.
+          const normalized = readDraft().map(normalize); // Validate all rows before changing tasks.
           if (!normalized.length) return;
-          normalized.forEach(row => {
-            const added = addRow({ ...row, status: STATUS_TODO, sync: false, insertPosition: false });
-            // Preserve omitted durations rather than deriving a different value on import.
-            added.querySelector(".work-minutes-input").value = row.workMinutesText;
+          withEditor(false, () => {
+            normalized.forEach(row => {
+              const added = addRow({ ...row, insertPosition: false });
+              added.querySelector(".work-minutes-input").value = row.workMinutesText;
+            });
+            refreshSyncCheckboxState(); saveAll();
           });
-          refreshSyncCheckboxState(); saveAll();
           status.textContent = `${normalized.length}行をタスク管理の末尾に追加しました。登録用データは再利用できます。`;
         } catch (error) { status.textContent = error.message; }
       };
@@ -2848,9 +2891,9 @@
         try {
           const selected = fields.filter(([key]) => document.querySelector(`#bulkExportFields input[value="${key}"]`).checked);
           if (!selected.length) throw new Error("出力する項目を1つ以上選択してください。");
-          const source = document.getElementById("bulkExportSource").value === "draft" ? draft : getRows().map(readRowDataFromElement);
+          const source = document.getElementById("bulkExportSource").value === "draft" ? readDraft() : getRows(mainEditor.tableBody).map(readRowDataFromElement);
           if (!source.length) throw new Error("出力するデータがありません。");
-          const rows = [selected.map(([, title]) => title), ...source.map(row => selected.map(([key]) => row[key] || ""))];
+          const rows = [selected.map(([, title]) => title), ...source.map(row => selected.map(([key]) => key === "sync" ? (row.sync ? "ON" : "OFF") : row[key] || ""))];
           const csv = "\uFEFF" + rows.map(row => row.map(csvEscape).join(",")).join("\r\n");
           const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
           const link = document.createElement("a"); link.href = url; link.download = `oneday_tasks_${getTimestampString()}.csv`;
@@ -2858,11 +2901,6 @@
           status.textContent = `${source.length}行をCSV出力しました。`;
         } catch (error) { status.textContent = error.message; }
       };
-      try {
-        const saved = JSON.parse(localStorage.getItem(draftKey) || "[]");
-        if (Array.isArray(saved)) draft = saved.filter(row => row && typeof row === "object").map(row => Object.fromEntries(fields.map(([key]) => [key, String(row[key] ?? "")])));
-      } catch { status.textContent = "登録用データを読み込めませんでした。"; }
-      render();
     })();
   </script>
 </body>
