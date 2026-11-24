@@ -471,6 +471,12 @@
     .col-resizer.active { background: rgba(74, 144, 226, 0.55); }
 
 
+    .sync-gap {
+      background: #245c38 !important;
+      color: #c9ffda !important;
+      border-color: #5fe18b !important;
+    }
+
     .sync-overlap{
       background:#7a2020 !important;
       color:#fff !important;
@@ -2202,6 +2208,12 @@
     function updateSyncOverlapWarning() {
       getRows().forEach(row => {
         const overlap = getOverlapBelow(row);
+        const next = row.nextElementSibling;
+        const end = dateTimeToDate(row.querySelector(".end-date").value, row.querySelector(".end-time").value);
+        const nextStart = next ? dateTimeToDate(next.querySelector(".start-date").value, next.querySelector(".start-time").value) : null;
+        const gap = row.querySelector(".sync-check").checked && next && !next.querySelector(".sync-check").checked
+          && end && nextStart && nextStart - end >= 60000;
+        row.querySelector(".end-time").classList.toggle("sync-gap", !!gap);
         row.querySelector(".end-date")?.classList.toggle("sync-overlap", !!overlap);
         row.querySelector(".end-time")?.classList.toggle("sync-overlap", !!overlap);
         const select = row.querySelector(".task-action-select");
