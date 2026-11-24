@@ -678,6 +678,7 @@
       ※ 同期は2行目以降だけ使用でき、新規行はデフォルトでONっす。<br />
       ※ 同期ボタンは全行に対して「作業時間算出 → 同期処理」を実行するっす。<br />
       ※ Tab移動は 予定開始 → 予定終了 → タスク → 次の行 の順っす。<br />
+      ※ 開始日時を変えると作業時間を保って終了日時も移動するっす。終了日時を変えると作業時間を再計算するっす。同期ONの開始日時は、同期を外してから編集するっす。<br />
       ※ 「仕掛 → 完了」では確認後に状態だけ変更し、時刻は変更しないっす。「完了」を押すと「未着手に戻す／完了調整にする」を選択でき、完了調整を選んだ場合だけ再確認後に予定終了を現在時刻へ更新し、後続同期行へ連鎖反映するっす。<br />
       ※ 日またぎ対応は有効で、作業時間が15時間を超える場合は0分扱いっす。<br />
       ※ CSV出力では、表の内容を現在の並び順そのままで保存するっす。<br />
@@ -1232,15 +1233,12 @@
 
       startDateInput.addEventListener("blur", () => {
         startDateInput.value = normalizeDateInputValue(startDateInput.value);
-        restoreInvalidRange(tr, startDateInput);
-        updateStartWeekday(tr);
-        saveAll();
+        handleStartDateTimeChange(tr, startDateInput);
       });
 
       endDateInput.addEventListener("blur", () => {
         endDateInput.value = normalizeDateInputValue(endDateInput.value);
-        restoreInvalidRange(tr, endDateInput);
-        saveAll();
+        handleEndDateTimeChange(tr, endDateInput);
       });
 
       startInput.addEventListener("blur", () => {
@@ -1505,20 +1503,45 @@
       if (insertInterruption) insertAfter.querySelector(".task-name").focus();
     }
 
+    function handleStartDateTimeChange(tr, input) {
+      const minutes = getWorkMinutesValue(tr);
+      const rows = getRows();
+      const index = rows.indexOf(tr);
+      if (index > 0 && tr.querySelector(".sync-check").checked) {
+        syncRowFromPrevious(tr, rows[index - 1]);
+      } else {
+        const date = tr.querySelector(".start-date").value;
+        const time = tr.querySelector(".start-time").value;
+        if (dateTimeToDate(date, time) && minutes !== null) {
+          const end = addMinutesToDateTimeString(date, time, minutes);
+          tr.querySelector(".end-date").value = end.date;
+          tr.querySelector(".end-time").value = end.time;
+        } else restoreInvalidRange(tr, input);
+        updateWorkMinutes(tr);
+      }
+      updateStartWeekday(tr);
+      applySyncFromIndex(index + 1);
+      saveAll();
+    }
+
+    function handleEndDateTimeChange(tr, input) {
+      restoreInvalidRange(tr, input);
+      updateWorkMinutes(tr);
+      applySyncFromIndex(getRows().indexOf(tr) + 1);
+      saveAll();
+    }
+
     function handleTimeBlur(tr, inputElement) {
       inputElement.value = normalizeTimeInputValue(inputElement.value);
+      if (inputElement.classList.contains("start-time")) {
+        handleStartDateTimeChange(tr, inputElement);
+        return;
+      }
       if (isBulkEditor) {
         const start = tr.querySelector(".start-time").value, end = tr.querySelector(".end-time").value;
         if (isValidTime(start) && isValidTime(end)) tr.querySelector(".end-date").value = dateAfterDays(tr.querySelector(".start-date").value, end < start ? 1 : 0);
       }
-      restoreInvalidRange(tr, inputElement);
-      updateWorkMinutes(tr);
-
-      const rows = getRows();
-      const index = rows.indexOf(tr);
-      applySyncFromIndex(index);
-
-      saveAll();
+      handleEndDateTimeChange(tr, inputElement);
     }
 
     function handleWorkMinutesBlur(tr, inputElement) {
@@ -1698,8 +1721,14 @@
         const syncCheck = row.querySelector(".sync-check");
         if (!syncCheck) return;
         row.querySelector('.task-action-select option[value="merge"]').disabled = index === rows.length - 1;
+        const linked = index > 0 && syncCheck.checked;
+        [".start-date", ".start-time"].forEach(selector => {
+          const input = row.querySelector(selector);
+          input.readOnly = linked;
+          input.title = linked ? "開始日時を変更するには同期を外してください" : "開始日時を変えると作業時間を保って終了日時も移動します";
+        });
         const origin = row.querySelector(".origin-day");
-        if (origin) origin.disabled = index > 0 && syncCheck.checked;
+        if (origin) origin.disabled = linked;
 
         if (index === 0) {
           syncCheck.checked = false;
