@@ -588,6 +588,11 @@
       <p id="templateSaveStatus" role="status"></p>
     </section>
     <section id="settingsMode" aria-label="設定モード" hidden>
+      <h2>タスク行の操作確認</h2>
+      <p><label><input id="confirmCopyEnabled" type="checkbox"> 複製するときに確認を表示する</label></p>
+      <p><label><input id="confirmDeleteEnabled" type="checkbox"> 削除するときに確認を表示する</label></p>
+      <p>タスク管理・一括登録の行に適用され、変更は自動保存されます。</p>
+      <p id="actionConfirmationStatus" role="status"></p>
       <h2>通知の間隔</h2>
       <p>時間・分・秒で設定します（最大24時間）。変更は自動保存されます。</p>
       <fieldset style="margin:16px 0;border:1px solid var(--line);border-radius:8px;padding:16px;"><legend>時間内通知</legend><label><input id="insideIntervalHours" aria-label="時間内通知の時間" type="number" min="0" max="24" step="1" required style="width:75px"> 時間</label> <label><input id="insideIntervalMinutes" aria-label="時間内通知の分" type="number" min="0" max="59" step="1" required style="width:75px"> 分</label> <label><input id="insideIntervalSeconds" aria-label="時間内通知の秒" type="number" min="0" max="59" step="1" required style="width:75px"> 秒</label><p>合計1秒以上で設定してください。</p></fieldset>
@@ -759,6 +764,20 @@
     const STORAGE_KEY_INSIDE_NOTIFY_ENABLED = "dailyTaskManager.insideNotifyEnabled";
     const STORAGE_KEY_OVERDUE_NOTIFY_ENABLED = "dailyTaskManager.overdueNotifyEnabled";
     const STORAGE_KEY_TODO_NOTIFY_ENABLED = "dailyTaskManager.todoNotifyEnabled";
+
+    const actionConfirmations = {
+      copy: localStorage.getItem("dailyTaskManager.confirmCopy") !== "false",
+      delete: localStorage.getItem("dailyTaskManager.confirmDelete") === "true"
+    };
+    for (const [action, id] of [["copy", "confirmCopyEnabled"], ["delete", "confirmDeleteEnabled"]]) {
+      const input = document.getElementById(id);
+      input.checked = actionConfirmations[action];
+      input.addEventListener("change", () => {
+        actionConfirmations[action] = input.checked;
+        localStorage.setItem(action === "copy" ? "dailyTaskManager.confirmCopy" : "dailyTaskManager.confirmDelete", String(input.checked));
+        document.getElementById("actionConfirmationStatus").textContent = "操作確認の設定を保存しました。";
+      });
+    }
 
     const STATUS_TODO = "未着手";
     const STATUS_DOING = "仕掛";
@@ -1299,6 +1318,7 @@
       });
 
       deleteBtn.addEventListener("click", () => {
+        if (actionConfirmations.delete && !confirm("このタスクを削除しますか？")) return;
         if (activeDetailRow === tr) {
           closeTaskDetailPanel();
         }
@@ -1312,7 +1332,7 @@
         const action = actionSelect.value;
         actionSelect.value = "";
         if (action === "copy") {
-          if (!confirm("このタスクを複製しますか？")) return;
+          if (actionConfirmations.copy && !confirm("このタスクを複製しますか？")) return;
           const newRow = duplicateRow(tr);
           refreshSyncCheckboxState();
           saveAll();
