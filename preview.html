@@ -270,7 +270,9 @@
     .template-setting-row .template-minutes-field { flex: 0 1 100px; }
     .template-setting-row .template-minutes-wrap { display: flex; align-items: center; gap: 4px; }
     .template-setting-row input[type="text"] { display: block; }
-    .template-setting-row > label:has(input[type="checkbox"]) { align-self: center; }
+    .template-setting-row > .template-check-field { display: flex; flex-direction: column; align-items: center; }
+    .template-check-control { display: flex; align-items: center; justify-content: center; height: 35px; }
+    .template-check-control input { margin: 0; }
 
     .template-setting-row input:disabled { opacity: .45; cursor: not-allowed; }
     #createTaskDialog { width: 420px; }
@@ -2933,7 +2935,7 @@
         templates.forEach(item => {
           const row = document.createElement("div");
           row.className = "template-setting-row";
-          row.innerHTML = `<label class="template-name-field">テンプレ名 <input class="template-name" type="text"></label><label class="template-time-field">予定開始 <input class="template-start-time time-input" type="text" inputmode="numeric" placeholder="00:00" maxlength="5"></label><label class="template-time-field">予定終了 <input class="template-end-time time-input" type="text" inputmode="numeric" placeholder="00:00" maxlength="5"></label><label class="template-task-field">タスク <input class="template-task-name task-input" type="text"></label><label class="template-minutes-field">作業時間 <span class="template-minutes-wrap"><input class="template-minutes work-minutes-input" type="text" inputmode="numeric" placeholder="0" required><span class="work-minutes-label">分</span></span></label><label>同期 <input class="template-sync" type="checkbox"></label><label><input class="template-use-end" type="checkbox"> 終了時刻を入力する</label><label>表示 <input class="template-visible" type="checkbox"></label><button class="template-delete btn-danger" type="button">削除</button>`;
+          row.innerHTML = `<label class="template-name-field">テンプレ名 <input class="template-name" type="text"></label><label class="template-time-field">予定開始 <input class="template-start-time time-input" type="text" inputmode="numeric" placeholder="00:00" maxlength="5"></label><label class="template-time-field">予定終了 <input class="template-end-time time-input" type="text" inputmode="numeric" placeholder="00:00" maxlength="5"></label><label class="template-task-field">タスク <input class="template-task-name task-input" type="text"></label><label class="template-minutes-field">作業時間 <span class="template-minutes-wrap"><input class="template-minutes work-minutes-input" type="text" inputmode="numeric" placeholder="0" required><span class="work-minutes-label">分</span></span></label><label class="template-check-field"><span>同期</span><span class="template-check-control"><input class="template-sync" type="checkbox"></span></label><label class="template-check-field"><span>終了時刻を入力する</span><span class="template-check-control"><input class="template-use-end" type="checkbox"></span></label><label class="template-check-field"><span>表示</span><span class="template-check-control"><input class="template-visible" type="checkbox"></span></label><button class="template-delete btn-danger" type="button">削除</button>`;
           for (const [selector, property] of [[".template-name", "name"], [".template-task-name", "taskName"]]) {
             const input = row.querySelector(selector);
             input.value = item[property];
