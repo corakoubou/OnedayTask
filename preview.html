@@ -456,11 +456,30 @@
       <h1>一日タスク管理</h1>
       <div class="mode-switch" role="group" aria-label="画面モード">
         <button id="taskModeBtn" type="button" aria-pressed="true" aria-controls="taskMode">タスク管理モード</button>
+        <button id="bulkModeBtn" type="button" aria-pressed="false" aria-controls="bulkMode">一括データ登録モード</button>
         <button id="templateModeBtn" type="button" aria-pressed="false" aria-controls="templateMode">テンプレモード</button>
         <button id="settingsModeBtn" type="button" aria-pressed="false" aria-controls="settingsMode">設定モード</button>
         <button id="memoModeBtn" type="button" aria-pressed="false" aria-controls="memoMode">メモモード</button>
       </div>
     </header>
+    <section id="bulkMode" aria-label="一括データ登録モード" hidden>
+      <h2>一括データ登録・出力</h2>
+      <p>登録用の行を作成するか、CSVを読み込んで編集できます。「末尾に一括追加」でタスク管理に追加します。</p>
+      <p>日時を省略したデータも利用できます。開始日時と作業時間があり終了日時が空の場合は、終了日時を計算します。それ以外の省略項目は空欄で追加します。追加するタスクは未着手・同期OFFです。</p>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+        <button id="bulkAddRow" type="button">＋ 登録用の行を追加</button>
+        <label>CSVを読み込む <input id="bulkFile" type="file" accept=".csv,text/csv"></label>
+      </div>
+      <p id="bulkDraftInfo"></p>
+      <div id="bulkDraftRows"></div>
+      <p><button id="bulkImport" type="button">末尾に一括追加</button></p>
+      <h3>一括データ出力（CSV）</h3>
+      <p><label>出力するデータ <select id="bulkExportSource"><option value="tasks">タスク管理の全行</option><option value="draft">登録用の行</option></select></label></p>
+      <fieldset><legend>出力する項目</legend><div id="bulkExportFields" style="display:flex;flex-wrap:wrap;gap:12px"></div></fieldset>
+      <p><button id="bulkExport" type="button">選択した項目でCSV出力</button></p>
+      <p>日時のチェックを外すと、タスク内容と作業時間だけのデータとして再利用できます。登録用の行は自動保存され、追加・編集しても作成済みタスクには影響しません。</p>
+      <p id="bulkStatus" role="status"></p>
+    </section>
     <section id="templateMode" aria-label="テンプレモード" hidden>
       <h2>よく使うタスクのテンプレ</h2>
       <p>変更は自動保存されます。作業時間は分で入力してください。テンプレの編集・削除は作成済みタスクに影響しません。</p>
@@ -2508,17 +2527,21 @@
         const memo = mode === "memo";
         const settings = mode === "settings";
         const template = mode === "template";
+        const bulk = mode === "bulk";
+        document.getElementById("bulkMode").hidden = !bulk;
+        document.getElementById("bulkModeBtn").setAttribute("aria-pressed", String(bulk));
         document.getElementById("templateMode").hidden = !template;
         document.getElementById("templateModeBtn").setAttribute("aria-pressed", String(template));
-        if (memo || settings || template) closeTaskDetailPanel();
-        document.getElementById("taskMode").hidden = memo || settings || template;
+        if (memo || settings || template || bulk) closeTaskDetailPanel();
+        document.getElementById("taskMode").hidden = memo || settings || template || bulk;
         document.getElementById("settingsMode").hidden = !settings;
         document.getElementById("settingsModeBtn").setAttribute("aria-pressed", String(settings));
         document.getElementById("memoMode").hidden = !memo;
-        taskButton.setAttribute("aria-pressed", String(!memo && !settings && !template));
+        taskButton.setAttribute("aria-pressed", String(!memo && !settings && !template && !bulk));
         memoButton.setAttribute("aria-pressed", String(memo));
-        try { localStorage.setItem(MODE_KEY, template ? "template" : settings ? "settings" : memo ? "memo" : "task"); } catch {}
+        try { localStorage.setItem(MODE_KEY, bulk ? "bulk" : template ? "template" : settings ? "settings" : memo ? "memo" : "task"); } catch {}
       }
+      document.getElementById("bulkModeBtn").addEventListener("click", () => setMode("bulk"));
       document.getElementById("templateModeBtn").addEventListener("click", () => setMode("template"));
       document.getElementById("settingsModeBtn").addEventListener("click", () => setMode("settings"));
       taskButton.addEventListener("click", () => setMode("task"));
@@ -2663,6 +2686,144 @@
         save(); renderRows(); container.lastElementChild.querySelector("input").focus();
       });
       renderRows(); renderButtons();
+    })();
+    (() => {
+      const fields = [
+        ["startDate", "予定開始日", "date"], ["startTime", "予定開始", "time"],
+        ["endDate", "予定終了日", "date"], ["endTime", "予定終了", "time"],
+        ["workMinutesText", "作業時間", "number"], ["taskName", "タスク", "text"], ["taskDetail", "タスク詳細", "textarea"]
+      ];
+      const draftKey = "dailyTaskManager.bulkDraft";
+      const status = document.getElementById("bulkStatus");
+      const container = document.getElementById("bulkDraftRows");
+      let draft = [];
+      function normalize(data, index) {
+        if (!data || typeof data !== "object") throw new Error(`${index + 1}行目の形式が不正です。`);
+        const row = {};
+        fields.forEach(([key]) => { row[key] = String(data[key] ?? ""); });
+        for (const key of ["startDate", "endDate"]) if (row[key] && !isValidDate(row[key])) throw new Error(`${index + 1}行目：日付を確認してください。`);
+        for (const key of ["startTime", "endTime"]) if (row[key] && !isValidTime(row[key])) throw new Error(`${index + 1}行目：時刻を確認してください。`);
+        const duration = row.workMinutesText.trim().replace(/分$/, "");
+        if (duration && (!/^\d+$/.test(duration) || !Number.isSafeInteger(Number(duration)))) throw new Error(`${index + 1}行目：作業時間は0以上の整数（分）にしてください。`);
+        row.workMinutesText = duration;
+        const start = dateTimeToDate(row.startDate, row.startTime), end = dateTimeToDate(row.endDate, row.endTime);
+        if (start && end) {
+          if (end < start) throw new Error(`${index + 1}行目：終了日時が開始日時より前です。`);
+          const minutes = Math.round((end - start) / 60000);
+          if (duration && Number(duration) !== minutes) throw new Error(`${index + 1}行目：作業時間と開始・終了日時が一致しません。`);
+          row.workMinutesText = String(minutes);
+        } else if (start && duration && !row.endDate && !row.endTime) {
+          const calculated = addMinutesToDateTimeString(row.startDate, row.startTime, Number(duration));
+          if (!isValidDate(calculated.date)) throw new Error(`${index + 1}行目：作業時間が大きすぎます。`);
+          row.endDate = calculated.date; row.endTime = calculated.time;
+        }
+        return row;
+      }
+      function saveDraft() {
+        try { localStorage.setItem(draftKey, JSON.stringify(draft)); status.textContent = "登録用の行を自動保存しました。"; }
+        catch { status.textContent = "登録用データを保存できませんでした。"; }
+      }
+      function render() {
+        container.replaceChildren();
+        document.getElementById("bulkDraftInfo").textContent = `登録用：${draft.length}行`;
+        document.getElementById("bulkImport").disabled = draft.length === 0;
+        draft.forEach((row, index) => {
+          const group = document.createElement("fieldset");
+          group.style.cssText = "margin:12px 0;display:flex;flex-wrap:wrap;gap:12px;border:1px solid var(--line);border-radius:8px;";
+          const legend = document.createElement("legend"); legend.textContent = `${index + 1}行目`; group.appendChild(legend);
+          fields.forEach(([key, title, type]) => {
+            const label = document.createElement("label"); label.textContent = title + " ";
+            const input = document.createElement(type === "textarea" ? "textarea" : "input");
+            if (type !== "textarea") input.type = type;
+            if (type === "number") { input.min = "0"; input.step = "1"; }
+            input.setAttribute("aria-label", title); input.dataset.field = key;
+            input.style.cssText = "display:block;max-width:100%;width:160px;";
+            input.value = row[key] || "";
+            input.addEventListener("input", () => { row[key] = input.value; saveDraft(); });
+            label.appendChild(input); group.appendChild(label);
+          });
+          const remove = document.createElement("button"); remove.type = "button"; remove.textContent = "登録用の行を削除"; remove.className = "btn-danger";
+          remove.onclick = () => { draft.splice(index, 1); saveDraft(); render(); };
+          group.appendChild(remove); container.appendChild(group);
+        });
+      }
+      // Quoted fields may contain commas, CRLF, and escaped double quotes.
+      function parseCsv(text) {
+        text = text.replace(/^\uFEFF/, "");
+        const rows = []; let row = [], value = "", quoted = false, closed = false;
+        for (let i = 0; i < text.length; i++) {
+          const c = text[i];
+          if (quoted) {
+            if (c === '"') { if (text[i + 1] === '"') { value += '"'; i++; } else { quoted = false; closed = true; } }
+            else value += c;
+          } else if (c === '"') {
+            if (value || closed) throw new Error("CSVの引用符が不正です。");
+            quoted = true;
+          } else if (c === ',' || c === '\n' || c === '\r') {
+            row.push(value); value = ""; closed = false;
+            if (c !== ',') { rows.push(row); row = []; if (c === '\r' && text[i + 1] === '\n') i++; }
+          } else { if (closed) throw new Error("CSVの引用符の後に不要な文字があります。"); value += c; }
+        }
+        if (quoted) throw new Error("CSVの引用符が閉じられていません。");
+        if (value || row.length || closed) { row.push(value); rows.push(row); }
+        return rows;
+      }
+      document.getElementById("bulkAddRow").onclick = () => { draft.push(Object.fromEntries(fields.map(([key]) => [key, ""]))); saveDraft(); render(); };
+      document.getElementById("bulkFile").addEventListener("change", async event => {
+        const file = event.target.files[0]; if (!file) return;
+        try {
+          const rows = parseCsv(await file.text());
+          const headers = rows.shift()?.map(value => value.trim()) || [];
+          const recognized = fields.filter(([, title]) => headers.includes(title));
+          if (!recognized.length) throw new Error("対応する項目がありません。この画面から出力したCSVを選択してください。");
+          if (recognized.some(([, title]) => headers.filter(header => header === title).length > 1)) throw new Error("CSVの項目名が重複しています。");
+          const loaded = rows.filter(row => row.some(value => value !== "")).map((values, index) => {
+            if (values.length !== headers.length) throw new Error(`${index + 1}行目：CSVの項目数が一致しません。`);
+            return normalize(Object.fromEntries(recognized.map(([key, title]) => [key, values[headers.indexOf(title)]])), index);
+          });
+          if (!loaded.length) throw new Error("読み込むタスクがありません。");
+          draft.push(...loaded); saveDraft(); render();
+          status.textContent = `${loaded.length}行を登録用に読み込みました。内容を確認して「末尾に一括追加」を押してください。`;
+        } catch (error) { status.textContent = error.message; }
+        event.target.value = "";
+      });
+      document.getElementById("bulkImport").onclick = () => {
+        try {
+          const normalized = draft.map(normalize); // Validate all rows before changing tasks.
+          if (!normalized.length) return;
+          normalized.forEach(row => {
+            const added = addRow({ ...row, status: STATUS_TODO, sync: false, insertPosition: false });
+            // Preserve omitted durations rather than deriving a different value on import.
+            added.querySelector(".work-minutes-input").value = row.workMinutesText;
+          });
+          refreshSyncCheckboxState(); saveAll();
+          status.textContent = `${normalized.length}行をタスク管理の末尾に追加しました。登録用データは再利用できます。`;
+        } catch (error) { status.textContent = error.message; }
+      };
+      fields.forEach(([key, title]) => {
+        const label = document.createElement("label"), input = document.createElement("input");
+        input.type = "checkbox"; input.value = key; input.checked = true;
+        label.append(input, document.createTextNode(" " + title)); document.getElementById("bulkExportFields").appendChild(label);
+      });
+      document.getElementById("bulkExport").onclick = () => {
+        try {
+          const selected = fields.filter(([key]) => document.querySelector(`#bulkExportFields input[value="${key}"]`).checked);
+          if (!selected.length) throw new Error("出力する項目を1つ以上選択してください。");
+          const source = document.getElementById("bulkExportSource").value === "draft" ? draft : getRows().map(readRowDataFromElement);
+          if (!source.length) throw new Error("出力するデータがありません。");
+          const rows = [selected.map(([, title]) => title), ...source.map(row => selected.map(([key]) => row[key] || ""))];
+          const csv = "\uFEFF" + rows.map(row => row.map(csvEscape).join(",")).join("\r\n");
+          const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+          const link = document.createElement("a"); link.href = url; link.download = `oneday_tasks_${getTimestampString()}.csv`;
+          document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+          status.textContent = `${source.length}行をCSV出力しました。`;
+        } catch (error) { status.textContent = error.message; }
+      };
+      try {
+        const saved = JSON.parse(localStorage.getItem(draftKey) || "[]");
+        if (Array.isArray(saved)) draft = saved.filter(row => row && typeof row === "object").map(row => Object.fromEntries(fields.map(([key]) => [key, String(row[key] ?? "")])));
+      } catch { status.textContent = "登録用データを読み込めませんでした。"; }
+      render();
     })();
   </script>
 </body>
