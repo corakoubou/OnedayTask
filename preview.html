@@ -233,7 +233,9 @@
 
     tbody tr:last-child td { border-bottom: none; }
 
-    input[type="text"] {
+    input[type="text"],
+    #createTaskDialog input[type="date"], #createTaskDialog input[type="time"], #createTaskDialog input[type="number"],
+    #bulkTable input, #bulkTable textarea {
       width: 100%;
       background: #1b1b22;
       color: var(--text);
@@ -242,6 +244,29 @@
       padding: 8px;
       font-size: 14px;
       min-width: 0;
+    }
+
+    #createTaskDialog { width: 420px; }
+    #createTaskDialog input[type="date"], #createTaskDialog input[type="time"], #createTaskDialog input[type="number"],
+    #bulkTable input[type="date"], #bulkTable input[type="time"], #bulkTable input[type="number"] {
+      color-scheme: dark;
+      text-align: center;
+      font-family: Consolas, monospace;
+    }
+    #createTaskDialog label:has(input:not([type="checkbox"])) { display: block; line-height: 1.8; }
+    #createTaskDialog input:disabled { opacity: .45; cursor: not-allowed; }
+    #createTaskDialog input:read-only:not([type="checkbox"]) { color: var(--muted); }
+    #createTaskDialog::backdrop { background: rgba(0, 0, 0, .58); }
+    #createTaskCancel { background: #555563; }
+    #bulkTable th { white-space: normal; overflow-wrap: anywhere; }
+    #bulkTable textarea { display: block; height: 35px; resize: vertical; font-family: inherit; }
+    #bulkTable td > button { width: 100%; min-width: 0; padding: 10px 2px; overflow-wrap: anywhere; }
+    #bulkTable .work-minutes-wrap { gap: 2px; }
+    #bulkExportSource, #bulkMode > fieldset {
+      background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 8px;
+    }
+    #bulkFile::file-selector-button {
+      background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 8px; cursor: pointer;
     }
 
     .time-input {
@@ -471,7 +496,13 @@
         <label>CSVを読み込む <input id="bulkFile" type="file" accept=".csv,text/csv"></label>
       </div>
       <p id="bulkDraftInfo"></p>
-      <div id="bulkDraftRows"></div>
+      <div class="table-wrap">
+        <table id="bulkTable" aria-label="一括登録用タスク">
+          <colgroup><col style="width:15%"><col style="width:15%"><col style="width:10%"><col style="width:10%"><col style="width:20%"><col style="width:8%"><col style="width:15%"><col style="width:7%"></colgroup>
+          <thead><tr><th>予定開始日</th><th>予定終了日</th><th>予定開始</th><th>予定終了</th><th>タスク</th><th>作業時間</th><th>タスク詳細</th><th>削除</th></tr></thead>
+          <tbody id="bulkDraftRows"></tbody>
+        </table>
+      </div>
       <p><button id="bulkImport" type="button">末尾に一括追加</button></p>
       <h3>一括データ出力（CSV）</h3>
       <p><label>出力するデータ <select id="bulkExportSource"><option value="tasks">タスク管理の全行</option><option value="draft">登録用の行</option></select></label></p>
@@ -2728,23 +2759,31 @@
         document.getElementById("bulkDraftInfo").textContent = `登録用：${draft.length}行`;
         document.getElementById("bulkImport").disabled = draft.length === 0;
         draft.forEach((row, index) => {
-          const group = document.createElement("fieldset");
-          group.style.cssText = "margin:12px 0;display:flex;flex-wrap:wrap;gap:12px;border:1px solid var(--line);border-radius:8px;";
-          const legend = document.createElement("legend"); legend.textContent = `${index + 1}行目`; group.appendChild(legend);
-          fields.forEach(([key, title, type]) => {
-            const label = document.createElement("label"); label.textContent = title + " ";
+          const group = document.createElement("tr");
+          const displayOrder = ["startDate", "endDate", "startTime", "endTime", "taskName", "workMinutesText", "taskDetail"];
+          displayOrder.map(key => fields.find(field => field[0] === key)).forEach(([key, title, type]) => {
+            const cell = document.createElement("td");
             const input = document.createElement(type === "textarea" ? "textarea" : "input");
             if (type !== "textarea") input.type = type;
             if (type === "number") { input.min = "0"; input.step = "1"; }
             input.setAttribute("aria-label", title); input.dataset.field = key;
-            input.style.cssText = "display:block;max-width:100%;width:160px;";
+            if (type === "date") input.className = "date-input";
+            if (type === "time") input.className = "time-input";
+            if (key === "taskName") input.className = "task-input";
+            if (type === "number") input.className = "work-minutes-input";
             input.value = row[key] || "";
             input.addEventListener("input", () => { row[key] = input.value; saveDraft(); });
-            label.appendChild(input); group.appendChild(label);
+            if (type === "number") {
+              const wrap = document.createElement("div"); wrap.className = "work-minutes-wrap";
+              const unit = document.createElement("span"); unit.className = "work-minutes-label"; unit.textContent = "分";
+              wrap.append(input, unit); cell.appendChild(wrap);
+            } else cell.appendChild(input);
+            group.appendChild(cell);
           });
-          const remove = document.createElement("button"); remove.type = "button"; remove.textContent = "登録用の行を削除"; remove.className = "btn-danger";
+          const remove = document.createElement("button"); remove.type = "button"; remove.textContent = "削除"; remove.setAttribute("aria-label", `登録用の${index + 1}行目を削除`); remove.className = "btn-danger";
           remove.onclick = () => { draft.splice(index, 1); saveDraft(); render(); };
-          group.appendChild(remove); container.appendChild(group);
+          const deleteCell = document.createElement("td"); deleteCell.appendChild(remove);
+          group.appendChild(deleteCell); container.appendChild(group);
         });
       }
       // Quoted fields may contain commas, CRLF, and escaped double quotes.
