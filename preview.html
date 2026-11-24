@@ -505,7 +505,7 @@
         </div>
         <div id="bulkTemplateButtons" class="template-buttons" aria-label="テンプレから登録用タスクを追加"></div>
       </div>
-      <p id="bulkDraftInfo">起点日は登録する日から「今日・明日・2日後…」で指定します。日付をまたぐと同期する次の行も翌日に進みます。登録用の行は別に自動保存されます。</p>
+      <p id="bulkDraftInfo">起点日の「今日」は、タスク管理に行がなければPCの日付、行があれば末行の終了日です。「明日・2日後…」もこの日を基準にします。日付をまたぐと同期する次の行も翌日に進みます。登録用の行は別に自動保存されます。</p>
     <div class="table-wrap" id="bulkTableWrap">
       <div class="table-width-resizer" id="bulkTableWidthResizer" title="表の横幅を変更"></div>
 
@@ -821,10 +821,17 @@
       }
       return row;
     }
-    function taskDataFromBulk(data) {
+    function getBulkImportBaseDate() {
+      const last = getRows(mainEditor.tableBody).at(-1);
+      if (!last) return getCurrentDateString();
+      const date = last.querySelector(".end-date").value;
+      if (!isValidDate(date)) throw new Error("タスク管理の末行の終了日を入力してから一括追加してください。");
+      return date;
+    }
+    function taskDataFromBulk(data, baseDate = getBulkImportBaseDate()) {
       const day = parseOrigin(data.originDay);
       const span = dayDifference(data.endDate, data.startDate);
-      const startDate = dateAfterDays(getCurrentDateString(), day);
+      const startDate = dateAfterDays(baseDate, day);
       return { ...data, startDate, endDate: dateAfterDays(startDate, span) };
     }
 
@@ -2977,9 +2984,10 @@
         try {
           const normalized = readDraft().map(normalize); // Validate all rows before changing tasks.
           if (!normalized.length) return;
+          const baseDate = getBulkImportBaseDate();
           withEditor(false, () => {
             normalized.forEach(row => {
-              const added = addRow({ ...taskDataFromBulk(row), insertPosition: false });
+              const added = addRow({ ...taskDataFromBulk(row, baseDate), insertPosition: false });
               added.querySelector(".work-minutes-input").value = row.workMinutesText;
             });
             refreshSyncCheckboxState(); saveAll();
