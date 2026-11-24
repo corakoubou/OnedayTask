@@ -258,6 +258,8 @@
     #createTaskDialog input:read-only:not([type="checkbox"]) { color: var(--muted); }
     #createTaskDialog::backdrop { background: rgba(0, 0, 0, .58); }
     #createTaskCancel { background: #555563; }
+    .origin-day { width: 100%; min-width: 0; padding: 8px 2px; background: #1b1b22; color: var(--text); border: 1px solid var(--line); border-radius: 6px; font-size: 14px; text-align: center; }
+    .origin-day:disabled { opacity: .7; }
     #bulkTable th { white-space: normal; overflow-wrap: anywhere; }
     #bulkTable td > button { width: 100%; min-width: 0; padding: 10px 2px; overflow-wrap: anywhere; }
     #bulkExportSource, #bulkMode > fieldset {
@@ -503,7 +505,7 @@
         </div>
         <div id="bulkTemplateButtons" class="template-buttons" aria-label="テンプレから登録用タスクを追加"></div>
       </div>
-      <p id="bulkDraftInfo">タスク管理と同じ操作で登録用データを編集できます。登録用の行は別に自動保存されます。</p>
+      <p id="bulkDraftInfo">起点日は登録する日から「今日・明日・2日後…」で指定します。日付をまたぐと同期する次の行も翌日に進みます。登録用の行は別に自動保存されます。</p>
     <div class="table-wrap" id="bulkTableWrap">
       <div class="table-width-resizer" id="bulkTableWidthResizer" title="表の横幅を変更"></div>
 
@@ -511,8 +513,6 @@
         <colgroup id="bulkColGroup">
           <col style="width: 70px;" />
           <col style="width: 90px;" />
-          <col style="width: 40px;" />
-          <col style="width: 130px;" />
           <col style="width: 130px;" />
           <col style="width: 130px;" />
           <col style="width: 130px;" />
@@ -528,9 +528,7 @@
           <tr>
             <th class="resizable">移動</th>
             <th class="resizable">挿入位置</th>
-            <th class="resizable">曜</th>
-            <th class="resizable">予定開始日</th>
-            <th class="resizable">予定終了日</th>
+            <th class="resizable">起点日</th>
             <th class="resizable">予定開始</th>
             <th class="resizable">予定終了</th>
             <th class="resizable">タスク</th>
@@ -549,7 +547,7 @@
       <p><label>出力するデータ <select id="bulkExportSource"><option value="tasks">タスク管理の全行</option><option value="draft">登録用の行</option></select></label></p>
       <fieldset><legend>出力する項目</legend><div id="bulkExportFields" style="display:flex;flex-wrap:wrap;gap:12px"></div></fieldset>
       <p><button id="bulkExport" type="button">選択した項目でCSV出力</button></p>
-      <p>日時のチェックを外すと、タスク内容と作業時間だけのデータとして再利用できます。登録用の行は自動保存され、追加・編集しても作成済みタスクには影響しません。</p>
+      <p>起点日や時刻のチェックを外して出力することもできます。起点日を省略して読み込む場合は「今日」になります。登録用の行は自動保存され、追加・編集しても作成済みタスクには影響しません。</p>
       <p id="bulkStatus" role="status"></p>
     </section>
     <section id="templateMode" aria-label="テンプレモード" hidden>
@@ -694,6 +692,7 @@
   <dialog id="createTaskDialog" aria-labelledby="createTaskTitle" style="background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:24px;max-width:90vw;">
     <form id="createTaskForm">
       <h2 id="createTaskTitle">タスク作成</h2>
+      <p id="createOriginGroup" hidden><label>起点日 <select id="createOriginDay" class="origin-day"></select></label></p>
       <p><label>予定開始日 <input id="createStartDate" type="date" required></label></p>
       <p><label>予定開始時刻 <input id="createStartTime" type="time" required></label></p>
       <p><label>作業時間 <input id="createMinutes" type="number" min="0" step="1" value="30" required> 分</label></p>
@@ -781,6 +780,54 @@
       return isBulkEditor ? (key === STORAGE_KEY_ROWS ? "dailyTaskManager.bulkDraft" : key + ".bulk") : key;
     }
 
+    const BULK_BASE_DATE = "2000-01-01";
+    function dayDifference(a, b) {
+      const utc = value => { const [y, m, d] = value.split("-").map(Number); return Date.UTC(y, m - 1, d); };
+      return Math.round((utc(a) - utc(b)) / 86400000);
+    }
+    function dateAfterDays(date, days) {
+      const [y, m, d] = date.split("-").map(Number);
+      const result = new Date(Date.UTC(y, m - 1, d + days));
+      return result.toISOString().slice(0, 10);
+    }
+    function originLabel(day) { return day === 0 ? "今日" : day === 1 ? "明日" : `${day}日後`; }
+    function parseOrigin(value) {
+      if (value === "今日" || value === "" || value == null) return 0;
+      if (value === "明日") return 1;
+      const text = String(value).replace(/日後$/, "");
+      if (!/^\d+$/.test(text) || !Number.isSafeInteger(Number(text)) || Number(text) > 36500) throw new Error("起点日は「今日」「明日」「2日後」または0以上の日数で指定してください。");
+      return Number(text);
+    }
+    function populateOrigins(select, selected = 0) {
+      select.replaceChildren();
+      for (let day = 0; day <= Math.max(30, selected); day++) {
+        const option = document.createElement("option"); option.value = String(day); option.textContent = originLabel(day); select.appendChild(option);
+      }
+      select.value = String(selected);
+    }
+    function bulkData(data) {
+      const row = { ...data };
+      const originalStart = row.startDate, originalEnd = row.endDate;
+      const offset = row.originDay != null ? parseOrigin(row.originDay)
+        : isValidDate(originalStart) ? Math.max(0, dayDifference(originalStart, originalStart.startsWith("2000-") ? BULK_BASE_DATE : getCurrentDateString())) : 0;
+      row.originDay = String(offset);
+      row.startDate = dateAfterDays(BULK_BASE_DATE, offset);
+      let span = isValidDate(originalStart) && isValidDate(originalEnd) ? Math.max(0, dayDifference(originalEnd, originalStart)) : 0;
+      if (!span && isValidTime(row.startTime) && isValidTime(row.endTime) && row.endTime < row.startTime) span = 1;
+      row.endDate = dateAfterDays(row.startDate, span);
+      if (isValidTime(row.startTime) && /^\d+$/.test(String(row.workMinutesText ?? "")) && (!row.endTime || !isValidDate(originalEnd))) {
+        const end = addMinutesToDateTimeString(row.startDate, row.startTime, Number(row.workMinutesText));
+        row.endDate = end.date; if (!row.endTime) row.endTime = end.time;
+      }
+      return row;
+    }
+    function taskDataFromBulk(data) {
+      const day = parseOrigin(data.originDay);
+      const span = dayDifference(data.endDate, data.startDate);
+      const startDate = dateAfterDays(getCurrentDateString(), day);
+      return { ...data, startDate, endDate: dateAfterDays(startDate, span) };
+    }
+
     let dragRow = null;
     let insideNotifyEnabled = localStorage.getItem(STORAGE_KEY_INSIDE_NOTIFY_ENABLED) !== "false";
     let overdueNotifyEnabled = localStorage.getItem(STORAGE_KEY_OVERDUE_NOTIFY_ENABLED) !== "false";
@@ -799,7 +846,12 @@
       const rows = getRows();
       const previous = insertAfter || rows[rows.length - 1];
       form.reset();
-      field("StartDate").value = getCurrentDateString();
+      field("StartDate").value = isBulkEditor ? BULK_BASE_DATE : getCurrentDateString();
+      field("StartDate").closest("p").hidden = isBulkEditor;
+      field("EndDate").closest("p").hidden = isBulkEditor;
+      document.getElementById("createOriginGroup").hidden = !isBulkEditor;
+      populateOrigins(field("OriginDay"));
+      field("OriginDay").onchange = () => { field("StartDate").value = dateAfterDays(BULK_BASE_DATE, Number(field("OriginDay").value)); };
       field("StartTime").value = getCurrentTimeString();
       field("Sync").disabled = !previous;
       field("Sync").checked = !!previous;
@@ -810,9 +862,14 @@
           field("StartDate").value = previous.querySelector(".end-date").value || getCurrentDateString();
           field("StartTime").value = previous.querySelector(".end-time").value || getCurrentTimeString();
         }
+        if (isBulkEditor) {
+          const day = dayDifference(field("StartDate").value, BULK_BASE_DATE);
+          populateOrigins(field("OriginDay"), Math.max(0, day));
+          field("OriginDay").disabled = !!synced;
+        }
         field("StartDate").readOnly = !!synced;
         field("StartTime").readOnly = !!synced;
-        field("SyncHint").textContent = synced ? "開始日時を編集する場合は、同期のチェックを外してください。" : "";
+        field("SyncHint").textContent = synced ? (isBulkEditor ? "起点日・開始時刻を編集する場合は、同期のチェックを外してください。" : "開始日時を編集する場合は、同期のチェックを外してください。") : "";
       }
       function updateEndMode() {
         const useEnd = field("UseEnd").checked;
@@ -835,7 +892,8 @@
         let minutes = Number(field("Minutes").value);
         let end;
         if (field("UseEnd").checked) {
-          const endDate = field("EndDate").value, endTime = field("EndTime").value;
+          const endTime = field("EndTime").value;
+          const endDate = isBulkEditor ? dateAfterDays(startDate, endTime < startTime ? 1 : 0) : field("EndDate").value;
           const finish = dateTimeToDate(endDate, endTime);
           if (!start || !finish || finish < start) {
             field("TaskError").textContent = "終了日時は開始日時以降にしてください。";
@@ -1019,6 +1077,25 @@
         tableBody.appendChild(tr);
       }
 
+      if (isBulkEditor) {
+        const weekdayCell = tr.querySelector(".weekday-cell");
+        const start = tr.querySelector(".start-date"), end = tr.querySelector(".end-date");
+        start.closest("td").remove(); end.closest("td").remove();
+        weekdayCell.className = "origin-cell";
+        const select = document.createElement("select"); select.className = "origin-day"; select.setAttribute("aria-label", "起点日");
+        populateOrigins(select);
+        const weekday = document.createElement("span"); weekday.className = "weekday-cell"; weekday.hidden = true;
+        start.type = end.type = "hidden";
+        start.value = end.value = BULK_BASE_DATE;
+        weekdayCell.append(select, start, end, weekday);
+        select.addEventListener("change", () => {
+          const span = isValidDate(end.value) ? dayDifference(end.value, start.value) : 0;
+          start.value = dateAfterDays(BULK_BASE_DATE, Number(select.value));
+          end.value = dateAfterDays(start.value, Math.max(0, span));
+          updateStartWeekday(tr);
+          applySyncFromIndex(getRows().indexOf(tr) + 1); saveAll();
+        });
+      }
       bindRowEvents(tr);
 
       if (data) {
@@ -1061,8 +1138,8 @@
       }
 
       const startDate = previousRow
-        ? (previousRow.querySelector(".end-date").value || getCurrentDateString())
-        : getCurrentDateString();
+        ? (previousRow.querySelector(".end-date").value || (isBulkEditor ? BULK_BASE_DATE : getCurrentDateString()))
+        : (isBulkEditor ? BULK_BASE_DATE : getCurrentDateString());
 
       const endDateTime = addMinutesToDateTimeString(startDate, startTime, minutes);
 
@@ -1170,6 +1247,7 @@
           applySyncFromIndex(index);
         }
 
+        refreshSyncCheckboxState();
         saveAll();
       });
 
@@ -1369,6 +1447,7 @@
       const date = `${point.getFullYear()}-${String(point.getMonth() + 1).padStart(2, "0")}-${String(point.getDate()).padStart(2, "0")}`;
       const time = `${String(point.getHours()).padStart(2, "0")}:${String(point.getMinutes()).padStart(2, "0")}`;
       const data = readRowDataFromElement(tr);
+      if (isBulkEditor) delete data.originDay;
       let insertAfter = tr;
       if (insertInterruption) {
         insertAfter = addRow({ startDate: date, startTime: time, endDate: date, endTime: time, taskName: "", taskDetail: "", status: STATUS_TODO, sync: true, insertPosition: false, workMinutesText: "0" }, tr);
@@ -1386,6 +1465,10 @@
 
     function handleTimeBlur(tr, inputElement) {
       inputElement.value = normalizeTimeInputValue(inputElement.value);
+      if (isBulkEditor) {
+        const start = tr.querySelector(".start-time").value, end = tr.querySelector(".end-time").value;
+        if (isValidTime(start) && isValidTime(end)) tr.querySelector(".end-date").value = dateAfterDays(tr.querySelector(".start-date").value, end < start ? 1 : 0);
+      }
       restoreInvalidRange(tr, inputElement);
       updateWorkMinutes(tr);
 
@@ -1573,6 +1656,8 @@
         const syncCheck = row.querySelector(".sync-check");
         if (!syncCheck) return;
         row.querySelector('.task-action-select option[value="merge"]').disabled = index === rows.length - 1;
+        const origin = row.querySelector(".origin-day");
+        if (origin) origin.disabled = index > 0 && syncCheck.checked;
 
         if (index === 0) {
           syncCheck.checked = false;
@@ -1608,6 +1693,7 @@
 
     function readRowDataFromElement(tr) {
       return {
+        ...(tr.querySelector(".origin-day") ? { originDay: tr.querySelector(".origin-day").value } : {}),
         startDate: tr.querySelector(".start-date").value,
         startTime: tr.querySelector(".start-time").value,
         endDate: tr.querySelector(".end-date").value,
@@ -1622,6 +1708,7 @@
     }
 
     function applyRowDataToElement(tr, data) {
+      if (isBulkEditor) data = bulkData(data);
       tr.querySelector(".start-date").value = data.startDate || "";
       tr.querySelector(".start-time").value = data.startTime || "";
       tr.querySelector(".end-date").value = data.endDate || "";
@@ -1713,8 +1800,10 @@
       const endDateInput = tr.querySelector(".end-date");
       const endInput = tr.querySelector(".end-time");
 
-      endDateInput.value = getCurrentDateString();
       endInput.value = getCurrentTimeString();
+      endDateInput.value = isBulkEditor
+        ? dateAfterDays(tr.querySelector(".start-date").value, endInput.value < tr.querySelector(".start-time").value ? 1 : 0)
+        : getCurrentDateString();
 
       updateWorkMinutes(tr);
       setStatus(tr, STATUS_DONE_ADJUSTED);
@@ -1770,13 +1859,10 @@
       const startMinutes = timeStringToMinutes(startValue);
       const endMinutes = timeStringToMinutes(endValue);
 
-      let diffMinutes = endMinutes - startMinutes;
+      const startDate = dateTimeToDate(tr.querySelector(".start-date").value, startValue);
+      const endDate = dateTimeToDate(tr.querySelector(".end-date").value, endValue);
+      let diffMinutes = startDate && endDate ? Math.round((endDate - startDate) / 60000) : endMinutes - startMinutes;
       if (diffMinutes < 0) diffMinutes += 24 * 60;
-
-      if (diffMinutes > 15 * 60) {
-        cell.value = "0";
-        return 0;
-      }
 
       cell.value = `${diffMinutes}`;
       return diffMinutes;
@@ -1836,6 +1922,15 @@
       if (!startDateInput || !weekdayCell) return;
 
       const value = startDateInput.value;
+      const origin = row.querySelector(".origin-day");
+      if (origin && isValidDate(value)) {
+        const day = Math.max(0, dayDifference(value, BULK_BASE_DATE));
+        if (![...origin.options].some(option => option.value === String(day))) {
+          const option = document.createElement("option"); option.value = String(day); option.textContent = originLabel(day); origin.appendChild(option);
+        }
+        origin.value = String(day);
+        origin.disabled = row.querySelector(".sync-check").checked;
+      }
 
       weekdayCell.textContent = "";
       weekdayCell.classList.remove(
@@ -2054,6 +2149,11 @@
       }
 
       if (!Array.isArray(rows)) return;
+      if (isBulkEditor && rows.every(row => row.originDay == null)) {
+        const dates = rows.map(row => row.startDate).filter(isValidDate).sort();
+        const base = dates[0];
+        if (base) rows = rows.map(row => ({ ...row, originDay: isValidDate(row.startDate) ? String(Math.max(0, dayDifference(row.startDate, base))) : "0" }));
+      }
       rows.forEach((rowData) => {
         addRow(rowData, null, false);
       });
@@ -2073,6 +2173,10 @@
       if (!Array.isArray(widths)) return;
 
       const cols = colGroup.querySelectorAll("col");
+      if (isBulkEditor && widths.length === 13 && cols.length === 11) {
+        const unit = String(widths[0]).endsWith("%") ? "%" : "px";
+        widths = [...widths.slice(0, 2), `${widths.slice(2, 5).reduce((sum, width) => sum + (parseFloat(width) || 0), 0)}${unit}`, ...widths.slice(5)];
+      }
       if (widths.length > cols.length) {
         const unit = String(widths[0]).endsWith("%") ? "%" : "px";
         const combined = widths.slice(cols.length - 1).reduce((sum, width) => sum + (parseFloat(width) || 0), 0);
@@ -2101,7 +2205,7 @@
     }
 
     function resetColumnWidthsToDefault() {
-      const defaults = ["70px","90px","40px","130px","130px","130px","130px","300px","120px","120px","90px","90px","160px"];
+      const defaults = isBulkEditor ? ["70px","90px","130px","130px","130px","300px","120px","120px","90px","90px","160px"] : ["70px","90px","40px","130px","130px","130px","130px","300px","120px","120px","90px","90px","160px"];
       const cols = colGroup.querySelectorAll("col");
 
       cols.forEach((col, index) => {
@@ -2789,15 +2893,16 @@
     })();
     (() => {
       const fields = [
-        ["startDate", "予定開始日"], ["startTime", "予定開始"], ["endDate", "予定終了日"], ["endTime", "予定終了"],
+        ["originDay", "起点日"], ["startTime", "予定開始"], ["endTime", "予定終了"],
         ["workMinutesText", "作業時間"], ["taskName", "タスク"], ["sync", "同期"], ["status", "状態"]
       ];
       const status = document.getElementById("bulkStatus");
       function readDraft() { return getRows(bulkEditor.tableBody).map(readRowDataFromElement); }
       function normalize(data, index) {
         if (!data || typeof data !== "object") throw new Error(`${index + 1}行目の形式が不正です。`);
-        const row = {};
-        fields.forEach(([key]) => { row[key] = String(data[key] ?? ""); });
+        for (const key of ["startDate", "endDate"]) if (data[key] && !isValidDate(data[key])) throw new Error(`${index + 1}行目：日付を確認してください。`);
+        const row = bulkData(data);
+        fields.forEach(([key]) => { row[key] = String(row[key] ?? ""); });
         for (const key of ["startDate", "endDate"]) if (row[key] && !isValidDate(row[key])) throw new Error(`${index + 1}行目：日付を確認してください。`);
         for (const key of ["startTime", "endTime"]) if (row[key] && !isValidTime(row[key])) throw new Error(`${index + 1}行目：時刻を確認してください。`);
         const duration = row.workMinutesText.trim().replace(/分$/, "");
@@ -2852,7 +2957,7 @@
         try {
           const rows = parseCsv(await file.text());
           const headers = rows.shift()?.map(value => value.trim()) || [];
-          const recognized = fields.filter(([, title]) => headers.includes(title));
+          const recognized = [...fields, ["startDate", "予定開始日"], ["endDate", "予定終了日"]].filter(([, title]) => headers.includes(title));
           if (!recognized.length) throw new Error("対応する項目がありません。この画面から出力したCSVを選択してください。");
           if (recognized.some(([, title]) => headers.filter(header => header === title).length > 1)) throw new Error("CSVの項目名が重複しています。");
           const loaded = rows.filter(row => row.some(value => value !== "")).map((values, index) => {
@@ -2874,7 +2979,7 @@
           if (!normalized.length) return;
           withEditor(false, () => {
             normalized.forEach(row => {
-              const added = addRow({ ...row, insertPosition: false });
+              const added = addRow({ ...taskDataFromBulk(row), insertPosition: false });
               added.querySelector(".work-minutes-input").value = row.workMinutesText;
             });
             refreshSyncCheckboxState(); saveAll();
@@ -2891,9 +2996,12 @@
         try {
           const selected = fields.filter(([key]) => document.querySelector(`#bulkExportFields input[value="${key}"]`).checked);
           if (!selected.length) throw new Error("出力する項目を1つ以上選択してください。");
-          const source = document.getElementById("bulkExportSource").value === "draft" ? readDraft() : getRows(mainEditor.tableBody).map(readRowDataFromElement);
+          const source = document.getElementById("bulkExportSource").value === "draft" ? readDraft() : getRows(mainEditor.tableBody).map(tr => {
+            const data = readRowDataFromElement(tr);
+            return { ...data, originDay: isValidDate(data.startDate) ? String(Math.max(0, dayDifference(data.startDate, getCurrentDateString()))) : "0" };
+          });
           if (!source.length) throw new Error("出力するデータがありません。");
-          const rows = [selected.map(([, title]) => title), ...source.map(row => selected.map(([key]) => key === "sync" ? (row.sync ? "ON" : "OFF") : row[key] || ""))];
+          const rows = [selected.map(([, title]) => title), ...source.map(row => selected.map(([key]) => key === "originDay" ? originLabel(parseOrigin(row.originDay)) : key === "sync" ? (row.sync ? "ON" : "OFF") : row[key] || ""))];
           const csv = "\uFEFF" + rows.map(row => row.map(csvEscape).join(",")).join("\r\n");
           const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
           const link = document.createElement("a"); link.href = url; link.download = `oneday_tasks_${getTimestampString()}.csv`;
