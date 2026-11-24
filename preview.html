@@ -2181,8 +2181,12 @@
     function splitOverlapAfterFixedRow(row) {
       const overlap = getOverlapBelow(row);
       if (!overlap) return;
+      let lastFixed = overlap.next;
+      while (lastFixed.nextElementSibling && !lastFixed.nextElementSibling.querySelector(".sync-check").checked) {
+        lastFixed = lastFixed.nextElementSibling;
+      }
       const start = dateTimeToDate(row.querySelector(".start-date").value, row.querySelector(".start-time").value);
-      const resume = dateTimeToDate(overlap.next.querySelector(".end-date").value, overlap.next.querySelector(".end-time").value);
+      const resume = dateTimeToDate(lastFixed.querySelector(".end-date").value, lastFixed.querySelector(".end-time").value);
       if (!start || overlap.cut < start || !resume || resume < overlap.cut) {
         alert("分割するには、元のタスクと下の非同期タスクの開始・終了日時を確認してください。非同期タスクの開始は元のタスクの開始以降にしてください。");
         return;
@@ -2190,8 +2194,8 @@
       const source = readRowDataFromElement(row);
       const cutDate = overlap.next.querySelector(".start-date").value;
       const cutTime = overlap.next.querySelector(".start-time").value;
-      const resumeDate = overlap.next.querySelector(".end-date").value;
-      const resumeTime = overlap.next.querySelector(".end-time").value;
+      const resumeDate = lastFixed.querySelector(".end-date").value;
+      const resumeTime = lastFixed.querySelector(".end-time").value;
       const finish = addMinutesToDateTimeString(resumeDate, resumeTime, overlap.minutes);
       delete source.originDay;
       row.querySelector(".end-date").value = cutDate;
@@ -2199,7 +2203,7 @@
       updateWorkMinutes(row);
       const added = addRow({ ...source, startDate: resumeDate, startTime: resumeTime,
         endDate: finish.date, endTime: finish.time, workMinutesText: String(overlap.minutes),
-        status: STATUS_TODO, sync: true, insertPosition: false }, overlap.next);
+        status: STATUS_TODO, sync: true, insertPosition: false }, lastFixed);
       refreshSyncCheckboxState();
       applySyncFromIndex(getRows().indexOf(added) + 1);
       saveAll();
