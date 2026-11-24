@@ -43,7 +43,7 @@
 
     .task-toolbars {
       position: sticky;
-      top: 0;
+      top: var(--app-header-height, 0px);
       z-index: 100;
       padding: 4px 0;
       margin-bottom: 8px;
@@ -478,12 +478,13 @@
 
 
     [hidden] { display: none !important; }
-    .app-header { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; margin-bottom: 16px; }
+    .app-header { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; margin-bottom: 4px;
+      position: sticky; top: 0; z-index: 120; padding: 6px 0; background: var(--bg); }
     .app-header h1 { margin: 0; }
-    .mode-switch { display: flex; gap: 4px; padding: 4px; background: var(--panel); border-radius: 10px; }
+    .mode-switch { display: flex; flex-wrap: wrap; max-width: 100%; gap: 4px; padding: 4px; background: var(--panel); border-radius: 10px; }
     .mode-switch button { background: transparent; color: var(--muted); }
     .mode-switch button[aria-pressed="true"] { background: var(--accent); color: white; }
-    .memo-toolbar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+    .memo-toolbar { position: sticky; top: var(--app-header-height, 0px); z-index: 100; padding: 4px 0; background: var(--bg); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
     .memo-toolbar p { margin: 0; color: var(--muted); font-size: 13px; }
     .memo-board { position: relative; min-height: 70vh; overflow: auto; border: 1px solid var(--line); border-radius: 12px;
       background: radial-gradient(var(--line) 1px, transparent 1px) 0 0 / 20px 20px, var(--panel); }
@@ -3136,6 +3137,14 @@
           status.textContent = `${source.length}行をCSV出力しました。`;
         } catch (error) { status.textContent = error.message; }
       };
+    })();
+  </script>
+  <script>
+    (() => {
+      const header = document.querySelector(".app-header");
+      const updateHeaderHeight = () => document.documentElement.style.setProperty("--app-header-height", `${header.getBoundingClientRect().height}px`);
+      new ResizeObserver(updateHeaderHeight).observe(header);
+      updateHeaderHeight();
     })();
   </script>
 </body>
