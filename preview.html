@@ -262,7 +262,16 @@
       min-width: 0;
     }
 
-    .template-setting-row input[type="date"], .template-setting-row input[type="time"], .template-setting-row input[type="number"] { color-scheme: dark; text-align: center; font-family: Consolas, monospace; }
+    .template-setting-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+    .template-setting-row > label { display: block; font-size: 14px; line-height: 1.6; }
+    .template-setting-row .template-name-field { flex: 1 1 140px; }
+    .template-setting-row .template-time-field { flex: 0 1 130px; min-width: 90px; }
+    .template-setting-row .template-task-field { flex: 2 1 240px; }
+    .template-setting-row .template-minutes-field { flex: 0 1 100px; }
+    .template-setting-row .template-minutes-wrap { display: flex; align-items: center; gap: 4px; }
+    .template-setting-row input[type="text"] { display: block; }
+    .template-setting-row > label:has(input[type="checkbox"]) { align-self: center; }
+
     .template-setting-row input:disabled { opacity: .45; cursor: not-allowed; }
     #createTaskDialog { width: 420px; }
     #createTaskDialog input[type="date"], #createTaskDialog input[type="time"], #createTaskDialog input[type="number"],
@@ -570,7 +579,7 @@
     </section>
     <section id="templateMode" aria-label="テンプレモード" hidden>
       <h2>よく使うタスクのテンプレ</h2>
-      <p>変更は自動保存されます。開始日時は省略可能です。同期ONなら前の行の終了日時を開始に使います。「終了日時を入力する」で作業時間の代わりに終了日時を指定できます。テンプレの編集・削除は作成済みタスクに影響しません。</p>
+      <p>変更は自動保存されます。開始時刻は省略可能です。時刻は930→09:30、1730→17:30のように数字で入力できます。同期ONなら前の行の終了時刻を開始に使います。「終了時刻を入力する」で作業時間の代わりに終了時刻を指定できます。テンプレの編集・削除は作成済みタスクに影響しません。</p>
       <button id="addTemplateBtn" type="button">＋ テンプレを追加</button>
       <div id="templateRows"></div>
       <p id="templateSaveStatus" role="status"></p>
@@ -2063,7 +2072,7 @@
       if (digits.length <= 2) {
         hh = digits.padStart(2, "0");
       } else {
-        const padded = digits.slice(0, 4).padEnd(4, "0");
+        const padded = digits.slice(0, 4).padStart(4, "0");
         hh = padded.slice(0, 2);
         mm = padded.slice(2, 4);
       }
@@ -2871,8 +2880,7 @@
       try {
         const saved = JSON.parse(localStorage.getItem(key) || "[]");
         if (Array.isArray(saved)) templates = saved.filter(item => item && typeof item.name === "string" && typeof item.taskName === "string" && Number.isSafeInteger(item.minutes) && item.minutes >= 0).map(item => ({ name: item.name, taskName: item.taskName, minutes: item.minutes, sync: !!item.sync, visible: item.visible !== false,
-          startDate: isValidDate(item.startDate) ? item.startDate : "", startTime: isValidTime(item.startTime) ? item.startTime : "",
-          endDate: isValidDate(item.endDate) ? item.endDate : "", endTime: isValidTime(item.endTime) ? item.endTime : "", useEnd: !!item.useEnd }));
+          startTime: isValidTime(item.startTime) ? item.startTime : "", endTime: isValidTime(item.endTime) ? item.endTime : "", useEnd: !!item.useEnd }));
       } catch { status.textContent = "テンプレを読み込めませんでした。"; }
       function save() {
         try { localStorage.setItem(key, JSON.stringify(templates)); status.textContent = "自動保存済み"; }
@@ -2884,16 +2892,15 @@
         const after = getInsertPositionRow() || rows[rows.length - 1] || null;
         const previousDate = after?.querySelector(".end-date").value;
         const previousTime = after?.querySelector(".end-time").value;
-        const configuredDate = value => value && isBulkEditor ? dateAfterDays(BULK_BASE_DATE, Math.max(0, dayDifference(value, getCurrentDateString()))) : value;
         const synced = item.sync && after;
-        const date = (synced ? previousDate : configuredDate(item.startDate)) || previousDate || (isBulkEditor ? BULK_BASE_DATE : getCurrentDateString());
+        const date = previousDate || (isBulkEditor ? BULK_BASE_DATE : getCurrentDateString());
         const time = (synced ? previousTime : item.startTime) || previousTime || getCurrentTimeString();
         if (!dateTimeToDate(date, time)) { alert("前の行の終了日時またはテンプレの開始日時を確認してください。"); return; }
         let minutes = item.minutes;
         let end;
         if (item.useEnd) {
           if (!isValidTime(item.endTime)) { alert("テンプレの予定終了時刻を入力してください。"); return; }
-          const endDate = configuredDate(item.endDate) || dateAfterDays(date, item.endTime < time ? 1 : 0);
+          const endDate = dateAfterDays(date, item.endTime < time ? 1 : 0);
           const finish = dateTimeToDate(endDate, item.endTime);
           const start = dateTimeToDate(date, time);
           if (!finish || finish < start) { alert("テンプレの終了日時は、作成するタスクの開始日時以降にしてください。"); return; }
@@ -2913,7 +2920,7 @@
           button.type = "button";
           button.className = "template-task-btn";
           button.textContent = item.name;
-          button.title = `${item.taskName || "タスク名未設定"}／${item.useEnd ? `終了 ${item.endDate || ""} ${item.endTime || "未設定"}` : `${item.minutes}分`}／同期${item.sync ? "ON" : "OFF"}`;
+          button.title = `${item.taskName || "タスク名未設定"}／${item.useEnd ? `終了 ${item.endTime || "未設定"}` : `${item.minutes}分`}／同期${item.sync ? "ON" : "OFF"}`;
           button.addEventListener("click", () => createTask(item));
           buttons.appendChild(button);
           const bulkButton = button.cloneNode(true);
@@ -2926,17 +2933,14 @@
         templates.forEach(item => {
           const row = document.createElement("div");
           row.className = "template-setting-row";
-          row.style.cssText = "display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:16px 0;border-bottom:1px solid var(--line)";
-          row.innerHTML = `<label>テンプレ名 <input class="template-name" type="text"></label><label>タスク名 <input class="template-task-name" type="text"></label><label>予定開始日 <input class="template-start-date" type="date"></label><label>予定開始時刻 <input class="template-start-time" type="time"></label><label>作業時間 <input class="template-minutes" type="number" min="0" step="1" required style="width:90px"> 分</label><label><input class="template-use-end" type="checkbox"> 終了日時を入力する</label><label>予定終了日 <input class="template-end-date" type="date"></label><label>予定終了時刻 <input class="template-end-time" type="time"></label><label>同期 <input class="template-sync" type="checkbox"></label><label>表示 <input class="template-visible" type="checkbox"></label><button class="template-delete btn-danger" type="button">削除</button>`;
+          row.innerHTML = `<label class="template-name-field">テンプレ名 <input class="template-name" type="text"></label><label class="template-time-field">予定開始 <input class="template-start-time time-input" type="text" inputmode="numeric" placeholder="00:00" maxlength="5"></label><label class="template-time-field">予定終了 <input class="template-end-time time-input" type="text" inputmode="numeric" placeholder="00:00" maxlength="5"></label><label class="template-task-field">タスク <input class="template-task-name task-input" type="text"></label><label class="template-minutes-field">作業時間 <span class="template-minutes-wrap"><input class="template-minutes work-minutes-input" type="text" inputmode="numeric" placeholder="0" required><span class="work-minutes-label">分</span></span></label><label>同期 <input class="template-sync" type="checkbox"></label><label><input class="template-use-end" type="checkbox"> 終了時刻を入力する</label><label>表示 <input class="template-visible" type="checkbox"></label><button class="template-delete btn-danger" type="button">削除</button>`;
           for (const [selector, property] of [[".template-name", "name"], [".template-task-name", "taskName"]]) {
             const input = row.querySelector(selector);
             input.value = item[property];
             input.addEventListener("input", () => { item[property] = input.value; save(); });
           }
           function updateTimeFields() {
-            row.querySelector(".template-start-date").disabled = item.sync;
             row.querySelector(".template-start-time").disabled = item.sync;
-            row.querySelector(".template-end-date").disabled = !item.useEnd;
             row.querySelector(".template-end-time").disabled = !item.useEnd;
             row.querySelector(".template-end-time").required = item.useEnd;
             const minutes = row.querySelector(".template-minutes");
@@ -2945,11 +2949,11 @@
             minutes.placeholder = item.useEnd ? "自動計算" : "0";
             minutes.title = item.useEnd ? "追加時に開始・終了日時から計算します" : "";
           }
-          for (const [selector, property] of [[".template-start-date", "startDate"], [".template-start-time", "startTime"], [".template-end-date", "endDate"], [".template-end-time", "endTime"]]) {
+          for (const [selector, property] of [[".template-start-time", "startTime"], [".template-end-time", "endTime"]]) {
             const input = row.querySelector(selector);
             input.value = item[property] || "";
-            input.addEventListener("change", () => {
-              if (!input.checkValidity()) { input.reportValidity(); return; }
+            input.addEventListener("blur", () => {
+              input.value = normalizeTimeInputValue(input.value);
               item[property] = input.value; save();
             });
           }
@@ -2958,9 +2962,11 @@
           useEnd.addEventListener("change", () => { item.useEnd = useEnd.checked; updateTimeFields(); save(); });
           const minutes = row.querySelector(".template-minutes");
           minutes.value = item.minutes;
-          minutes.addEventListener("change", () => {
-            if (!minutes.checkValidity() || !Number.isSafeInteger(Number(minutes.value))) { minutes.reportValidity(); minutes.value = item.minutes; return; }
-            item.minutes = Number(minutes.value); save();
+          minutes.addEventListener("blur", () => {
+            if (minutes.disabled) return;
+            const value = normalizeWorkMinutesInputValue(minutes.value);
+            if (value === null || !Number.isSafeInteger(value)) { minutes.value = item.minutes; return; }
+            minutes.value = String(value); item.minutes = value; save();
           });
           for (const property of ["sync", "visible"]) {
             const input = row.querySelector(`.template-${property}`);
@@ -2975,7 +2981,7 @@
         });
       }
       document.getElementById("addTemplateBtn").addEventListener("click", () => {
-        templates.push({ name: `テンプレ${templates.length + 1}`, taskName: "", minutes: 30, sync: true, visible: true, startDate: "", startTime: "", endDate: "", endTime: "", useEnd: false });
+        templates.push({ name: `テンプレ${templates.length + 1}`, taskName: "", minutes: 30, sync: true, visible: true, startTime: "", endTime: "", useEnd: false });
         save(); renderRows(); container.lastElementChild.querySelector("input").focus();
       });
       renderRows(); renderButtons();
