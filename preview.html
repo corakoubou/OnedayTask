@@ -2849,7 +2849,15 @@
         try { localStorage.setItem(NOTES_KEY, JSON.stringify(notes)); status.textContent = "自動保存済み"; }
         catch { status.textContent = "保存できませんでした。ブラウザの保存容量・設定を確認してください。"; }
       }
+      const modeScrollPositions = new Map();
+      let currentMode = null;
+      let modeChangeVersion = 0;
       function setMode(mode) {
+        if (!["task", "bulk", "template", "settings", "memo"].includes(mode)) mode = "task";
+        if (mode === currentMode) return;
+        if (currentMode) modeScrollPositions.set(currentMode, { left: window.scrollX, top: window.scrollY });
+        const version = ++modeChangeVersion;
+        const position = modeScrollPositions.get(mode) || { left: 0, top: 0 };
         const memo = mode === "memo";
         const settings = mode === "settings";
         const template = mode === "template";
@@ -2867,6 +2875,11 @@
         taskButton.setAttribute("aria-pressed", String(!memo && !settings && !template && !bulk));
         memoButton.setAttribute("aria-pressed", String(memo));
         try { localStorage.setItem(MODE_KEY, bulk ? "bulk" : template ? "template" : settings ? "settings" : memo ? "memo" : "task"); } catch {}
+        currentMode = mode;
+        window.scrollTo({ ...position, behavior: "instant" });
+        requestAnimationFrame(() => {
+          if (version === modeChangeVersion) window.scrollTo({ ...position, behavior: "instant" });
+        });
       }
       document.getElementById("bulkModeBtn").addEventListener("click", () => setMode("bulk"));
       document.getElementById("templateModeBtn").addEventListener("click", () => setMode("template"));
