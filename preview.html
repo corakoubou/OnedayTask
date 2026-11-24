@@ -1291,6 +1291,8 @@
           splitTask(tr, true);
         } else if (action === "insertSubtract") {
           splitTask(tr, true, true);
+        } else if (action === "splitOverlap") {
+          splitOverlapAfterFixedRow(tr);
         } else if (action === "merge") {
           if (!tr.nextElementSibling || !confirm("下のタスクと結合しますか？\n作業時間を合計し、この行の開始時刻・ステータスを引き継ぎます。")) return;
           mergeWithNext(tr);
@@ -2078,37 +2080,56 @@
     }
 
 
-    function updateSyncOverlapWarning() {
-      const rows=getRows();
+    function getOverlapBelow(row) {
+      const next = row.nextElementSibling;
+      if (!next || next.querySelector(".sync-check").checked) return null;
+      const end = dateTimeToDate(row.querySelector(".end-date").value, row.querySelector(".end-time").value);
+      const cut = dateTimeToDate(next.querySelector(".start-date").value, next.querySelector(".start-time").value);
+      if (!end || !cut || end <= cut) return null;
+      return { next, cut, minutes: Math.round((end - cut) / 60000) };
+    }
 
-      rows.forEach(row=>{
-        row.querySelector(".end-date")?.classList.remove("sync-overlap");
-        row.querySelector(".end-time")?.classList.remove("sync-overlap");
-      });
-
-      for(let i=1;i<rows.length;i++){
-        const row=rows[i];
-        const sync=row.querySelector(".sync-check");
-        if(sync && sync.checked) continue;
-
-        const prev=rows[i-1];
-
-        const prevDt=dateTimeToDate(
-          prev.querySelector(".end-date").value,
-          prev.querySelector(".end-time").value
-        );
-        const curDt=dateTimeToDate(
-          row.querySelector(".start-date").value,
-          row.querySelector(".start-time").value
-        );
-
-        if(!prevDt||!curDt) continue;
-
-        if(prevDt.getTime()>curDt.getTime()){
-          prev.querySelector(".end-date")?.classList.add("sync-overlap");
-          prev.querySelector(".end-time")?.classList.add("sync-overlap");
-        }
+    function splitOverlapAfterFixedRow(row) {
+      const overlap = getOverlapBelow(row);
+      if (!overlap) return;
+      const start = dateTimeToDate(row.querySelector(".start-date").value, row.querySelector(".start-time").value);
+      const resume = dateTimeToDate(overlap.next.querySelector(".end-date").value, overlap.next.querySelector(".end-time").value);
+      if (!start || overlap.cut < start || !resume || resume < overlap.cut) {
+        alert("分割するには、元のタスクと下の非同期タスクの開始・終了日時を確認してください。非同期タスクの開始は元のタスクの開始以降にしてください。");
+        return;
       }
+      const source = readRowDataFromElement(row);
+      const cutDate = overlap.next.querySelector(".start-date").value;
+      const cutTime = overlap.next.querySelector(".start-time").value;
+      const resumeDate = overlap.next.querySelector(".end-date").value;
+      const resumeTime = overlap.next.querySelector(".end-time").value;
+      const finish = addMinutesToDateTimeString(resumeDate, resumeTime, overlap.minutes);
+      delete source.originDay;
+      row.querySelector(".end-date").value = cutDate;
+      row.querySelector(".end-time").value = cutTime;
+      updateWorkMinutes(row);
+      const added = addRow({ ...source, startDate: resumeDate, startTime: resumeTime,
+        endDate: finish.date, endTime: finish.time, workMinutesText: String(overlap.minutes),
+        status: STATUS_TODO, sync: true, insertPosition: false }, overlap.next);
+      refreshSyncCheckboxState();
+      applySyncFromIndex(getRows().indexOf(added) + 1);
+      saveAll();
+    }
+
+    function updateSyncOverlapWarning() {
+      getRows().forEach(row => {
+        const overlap = getOverlapBelow(row);
+        row.querySelector(".end-date")?.classList.toggle("sync-overlap", !!overlap);
+        row.querySelector(".end-time")?.classList.toggle("sync-overlap", !!overlap);
+        const select = row.querySelector(".task-action-select");
+        const existing = select.querySelector('option[value="splitOverlap"]');
+        if (overlap && !existing) {
+          const option = document.createElement("option");
+          option.value = "splitOverlap";
+          option.textContent = "超過時間分コピーして分割";
+          select.appendChild(option);
+        } else if (!overlap && existing) existing.remove();
+      });
     }
 
     function saveAll() {
