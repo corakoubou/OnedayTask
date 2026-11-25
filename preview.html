@@ -921,7 +921,7 @@
       populateOrigins(field("OriginDay"));
       field("OriginDay").onchange = () => { field("StartDate").value = dateAfterDays(BULK_BASE_DATE, Number(field("OriginDay").value)); };
       field("StartTime").value = getCurrentTimeString();
-      field("Sync").disabled = !previous;
+      field("Sync").disabled = !previous && !isBulkEditor;
       field("Sync").checked = !!previous;
       field("TaskError").textContent = "";
       function updateSync() {
@@ -1325,8 +1325,8 @@
         const index = rows.indexOf(tr);
 
         if (index <= 0) {
-          syncCheck.checked = false;
-          syncCheck.disabled = true;
+          if (!isBulkEditor) { syncCheck.checked = false; syncCheck.disabled = true; }
+          refreshSyncCheckboxState();
           saveAll();
           return;
         }
@@ -1674,8 +1674,7 @@
         if (!syncCheck || !syncCheck.checked) continue;
 
         if (i === 0) {
-          syncCheck.checked = false;
-          syncCheck.disabled = true;
+          if (!isBulkEditor) { syncCheck.checked = false; syncCheck.disabled = true; }
           continue;
         }
 
@@ -1807,7 +1806,7 @@
         const origin = row.querySelector(".origin-day");
         if (origin) origin.disabled = linked;
 
-        if (index === 0) {
+        if (index === 0 && !isBulkEditor) {
           syncCheck.checked = false;
           syncCheck.disabled = true;
         } else {
@@ -3225,11 +3224,12 @@
           const insertAfter = getRows(mainEditor.tableBody).find(row => row.querySelector(".insert-check").checked) || null;
           withEditor(false, () => {
             let after = insertAfter;
+            const firstIndex = insertAfter ? getRows().indexOf(insertAfter) + 1 : getRows().length;
             normalized.forEach(row => {
               after = addRow({ ...taskDataFromBulk(row, baseDate), insertPosition: false }, after);
               after.querySelector(".work-minutes-input").value = row.workMinutesText;
             });
-            if (insertAfter) applySyncFromIndex(getRows().indexOf(after) + 1);
+            applySyncFromIndex(firstIndex);
             refreshSyncCheckboxState(); saveAll();
           });
           status.textContent = `${normalized.length}行をタスク管理の${insertAfter ? "選択行の直下" : "末尾"}に追加しました。登録用データは再利用できます。`;
