@@ -1564,9 +1564,39 @@
     }
 
     function handleEndDateTimeChange(tr, input) {
+      const rows = getRows();
+      const index = rows.indexOf(tr);
+      const linked = index > 0 && tr.querySelector(".sync-check").checked;
+      const previousMinutes = getWorkMinutesValue(tr);
+      if (linked) {
+        const previous = rows[index - 1];
+        const date = previous.querySelector(".end-date").value;
+        const time = previous.querySelector(".end-time").value;
+        if (!dateTimeToDate(date, time)) {
+          input.value = input.dataset.previousValue ?? "";
+          alert("前の行の終了日時が未設定または不正なため、同期できません。前の行を確認してください。");
+          return;
+        }
+        tr.querySelector(".start-date").value = date;
+        tr.querySelector(".start-time").value = time;
+        updateStartWeekday(tr);
+      }
+      if (isBulkEditor && input.classList.contains("end-time")) {
+        const start = tr.querySelector(".start-time").value, end = tr.querySelector(".end-time").value;
+        const range = rowRange(tr);
+        if (isValidTime(start) && isValidTime(end) && (input.value !== input.dataset.previousValue || !range.end || range.end < range.start)) {
+          tr.querySelector(".end-date").value = dateAfterDays(tr.querySelector(".start-date").value, end < start ? 1 : 0);
+        }
+      }
       restoreInvalidRange(tr, input);
+      const range = rowRange(tr);
+      if (linked && range.start && range.end && range.end < range.start) {
+        const restored = addMinutesToDateTimeString(tr.querySelector(".start-date").value, tr.querySelector(".start-time").value, previousMinutes ?? 0);
+        tr.querySelector(".end-date").value = restored.date;
+        tr.querySelector(".end-time").value = restored.time;
+      }
       updateWorkMinutes(tr);
-      applySyncFromIndex(getRows().indexOf(tr) + 1);
+      applySyncFromIndex(index + 1);
       saveAll();
     }
 
@@ -1575,10 +1605,6 @@
       if (inputElement.classList.contains("start-time")) {
         handleStartDateTimeChange(tr, inputElement);
         return;
-      }
-      if (isBulkEditor) {
-        const start = tr.querySelector(".start-time").value, end = tr.querySelector(".end-time").value;
-        if (isValidTime(start) && isValidTime(end)) tr.querySelector(".end-date").value = dateAfterDays(tr.querySelector(".start-date").value, end < start ? 1 : 0);
       }
       handleEndDateTimeChange(tr, inputElement);
     }
