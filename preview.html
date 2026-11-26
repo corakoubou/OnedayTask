@@ -514,8 +514,14 @@
 </style>
   <style>
 .task-view-switch { display: flex; gap: 4px; margin-top: 4px; }
-.task-view-switch button { padding: 7px 12px; background: var(--panel2); color: var(--muted); }
-.task-view-switch button[aria-pressed="true"] { background: var(--accent); color: white; }
+.task-view-switch label { display: inline-flex; align-items: center; gap: 7px; padding: 6px 10px; cursor: pointer; }
+.task-view-switch input { margin: 0; accent-color: var(--accent); }
+.task-view-switch label:has(input:checked) { background: var(--panel2); border-radius: 6px; }
+.timeline-controls .time-input { width: 90px; }
+.timeline-controls input[type="number"] { width: 75px; background: #1b1b22; color: var(--text); padding: 8px; border: 1px solid var(--line); border-radius: 6px; }
+.timeline-controls input[type="range"] { width: 150px; accent-color: var(--accent); }
+.timeline-controls label { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.timeline-range-status { color: var(--muted); font-size: 13px; }
 .timeline-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 10px 0; }
 .timeline-controls input { width: 140px; }
 .timeline-controls select, #timelineContextMenu select { background: #1b1b22; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 8px; max-width: 100%; }
@@ -523,7 +529,7 @@
 .timeline-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
 .timeline-grid { display: grid; grid-template-columns: 112px 38px 64px 62px 100px minmax(240px, 1.2fr) minmax(220px, 1fr) 64px; min-width: 920px; }
 .timeline-heading { background: var(--panel2); padding: 8px 4px; text-align: center; font-size: 13px; border-right: 1px solid var(--line); }
-.timeline-track { position: relative; border-right: 1px solid var(--line); background: repeating-linear-gradient(to bottom, transparent 0, transparent 41px, var(--line) 41px, var(--line) 42px); }
+.timeline-track { position: relative; border-right: 1px solid var(--line); background: repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--timeline-row-height, 42px) - 1px), var(--line) calc(var(--timeline-row-height, 42px) - 1px), var(--line) var(--timeline-row-height, 42px)); }
 .timeline-track.date-track, .timeline-track.weekday-track { background: var(--panel); }
 .timeline-date-label { padding-top: 8px; text-align: center; font: 13px Consolas, monospace; }
 .timeline-tick { position: absolute; right: 6px; font: 12px Consolas, monospace; color: var(--muted); }
@@ -700,8 +706,8 @@
 
     <div id="templateButtons" aria-label="テンプレからタスクを追加"></div>
     <div class="task-view-switch" role="group" aria-label="タスクの表示形式">
-      <button id="tableViewBtn" type="button" aria-pressed="true">表形式</button>
-      <button id="timelineViewBtn" type="button" aria-pressed="false">タイムライン形式</button>
+      <label><input id="tableViewBtn" name="taskView" type="radio" value="table" checked> 表形式</label>
+      <label><input id="timelineViewBtn" name="taskView" type="radio" value="timeline"> タイムライン形式</label>
     </div>
     </div>
 
@@ -750,12 +756,20 @@
     <section id="timelineView" aria-label="タスクのタイムライン" hidden>
       <div class="timeline-controls">
         <button id="timelinePrevDay" type="button">前日</button>
-        <label>表示日 <input id="timelineDay" type="text" class="date-input" inputmode="numeric" placeholder="YYYY-MM-DD" maxlength="10"></label>
+        <label>開始 <input id="timelineDay" type="text" class="date-input" inputmode="numeric" placeholder="YYYY-MM-DD" maxlength="10" aria-label="表示開始日"><input id="timelineStartTime" type="text" class="time-input" inputmode="numeric" placeholder="00:00" maxlength="5" aria-label="表示開始時刻"></label>
+        <label>終了 <input id="timelineEndDay" type="text" class="date-input" inputmode="numeric" placeholder="YYYY-MM-DD" maxlength="10" aria-label="表示終了日"><input id="timelineEndTime" type="text" class="time-input" inputmode="numeric" placeholder="00:00" maxlength="5" aria-label="表示終了時刻"></label>
+        <button id="timelineApplyRange" type="button">期間を適用</button>
         <button id="timelineNextDay" type="button">翌日</button>
         <label>予定のある日 <select id="timelineDayChoices" aria-label="予定のある日"></select></label>
         <button id="timelineToday" type="button">今日</button>
         <button id="timelineNow" type="button">現在時刻へ</button>
       </div>
+      <div class="timeline-controls">
+        <label>1行あたり <input id="timelineInterval" type="number" min="1" max="1440" step="1" list="timelineIntervalChoices" value="30"> 分</label>
+        <datalist id="timelineIntervalChoices"><option value="1"><option value="5"><option value="10"><option value="15"><option value="30"><option value="60"><option value="120"></datalist>
+        <label>拡大率 <input id="timelineZoom" type="range" min="25" max="300" step="25" value="100"><output id="timelineZoomValue">100%</output></label>
+      </div>
+      <p id="timelineRangeStatus" class="timeline-range-status" role="status">期間・1行の時間・拡大率は自動保存されます。60分で1時間の行になります。拡大率は時間軸の縦方向に反映します。</p>
       <p class="timeline-help">右クリックで編集・操作／ドラッグで行順を入れ替え（上半分にドロップで前、下半分で後）。日時が固定の行は、並べ替えても時刻を維持します。</p>
       <div class="timeline-scroll"><div id="timelineGrid" class="timeline-grid"></div></div>
       <div id="timelineUnscheduled"></div>
@@ -3488,7 +3502,41 @@
   const dateChoice = document.getElementById('timelineDayChoices');
   let view = localStorage.getItem('dailyTaskManager.taskView') === 'timeline' ? 'timeline' : 'table';
   let selected = null, dragging = null, frame = 0, displayDate = '', editing = null;
-  const pxPerMinute = 1.4;
+  const optionsKey = 'dailyTaskManager.timelineOptions';
+  const options = { startDate: '', startTime: '00:00', endDate: '', endTime: '00:00', interval: 30, zoom: 100 };
+  const intervalInput = document.getElementById('timelineInterval');
+  const zoomInput = document.getElementById('timelineZoom');
+  const rangeStatus = document.getElementById('timelineRangeStatus');
+  let rangeDirty = false;
+  let pxPerMinute = 1.4;
+  function validPeriod(value) {
+    const start = dateTimeToDate(value.startDate, value.startTime), end = dateTimeToDate(value.endDate, value.endTime);
+    return start && end && end > start && (end - start) / 60000 / value.interval <= 10000;
+  }
+  try {
+    const saved = JSON.parse(localStorage.getItem(optionsKey) || '{}');
+    if (Number.isInteger(saved.interval) && saved.interval >= 1 && saved.interval <= 1440) options.interval = saved.interval;
+    if (Number.isInteger(saved.zoom) && saved.zoom >= 25 && saved.zoom <= 300) options.zoom = saved.zoom;
+    const period = { ...options, startDate: saved.startDate, startTime: saved.startTime, endDate: saved.endDate, endTime: saved.endTime };
+    if (validPeriod(period)) Object.assign(options, period);
+  } catch {}
+  function saveOptions() { localStorage.setItem(optionsKey, JSON.stringify(options)); }
+  function syncControls() {
+    if (!rangeDirty) {
+      dayInput.value = options.startDate;
+      document.getElementById('timelineStartTime').value = options.startTime;
+      document.getElementById('timelineEndDay').value = options.endDate;
+      document.getElementById('timelineEndTime').value = options.endTime;
+    }
+    intervalInput.value = options.interval; zoomInput.value = options.zoom;
+    document.getElementById('timelineZoomValue').textContent = `${options.zoom}%`;
+  }
+  function shiftPeriod(date) {
+    if (!isValidDate(date)) return;
+    const span = options.startDate && options.endDate ? dayDifference(options.endDate, options.startDate) : 1;
+    options.startDate = date; options.endDate = dateAfterDays(date, span); displayDate = date;
+    rangeDirty = false; saveOptions(); refresh();
+  }
   const allRows = () => getRows(mainEditor.tableBody);
   const range = row => ({
     start: dateTimeToDate(row.querySelector('.start-date').value, row.querySelector('.start-time').value),
@@ -3615,13 +3663,19 @@
     const dates = new Set();
     timed.forEach(item => { dates.add(formatDateString(item.start)); dates.add(formatDateString(item.end)); });
     const sortedDates = [...dates].sort();
-    if (!displayDate) displayDate = dates.has(getCurrentDateString()) ? getCurrentDateString() : sortedDates[0] || getCurrentDateString();
-    dayInput.value = displayDate;
+    if (!options.startDate) {
+      options.startDate = dates.has(getCurrentDateString()) ? getCurrentDateString() : sortedDates[0] || getCurrentDateString();
+      options.endDate = dateAfterDays(options.startDate, 1); saveOptions();
+    }
+    displayDate = options.startDate;
+    syncControls();
+    pxPerMinute = 42 / options.interval * options.zoom / 100;
+    grid.style.setProperty('--timeline-row-height', `${42 * options.zoom / 100}px`);
     dateChoice.replaceChildren();
     const placeholder = document.createElement('option'); placeholder.value = ''; placeholder.textContent = '日付を選択'; dateChoice.appendChild(placeholder);
     sortedDates.forEach(date => { const option = document.createElement('option'); option.value = date; option.textContent = date; dateChoice.appendChild(option); });
     dateChoice.value = dates.has(displayDate) ? displayDate : '';
-    const dayStart = dateTimeToDate(displayDate, '00:00'), dayEnd = dateTimeToDate(dateAfterDays(displayDate, 1), '00:00');
+    const dayStart = dateTimeToDate(options.startDate, options.startTime), dayEnd = dateTimeToDate(options.endDate, options.endTime);
     const totalMinutes = (dayEnd - dayStart) / 60000, height = totalMinutes * pxPerMinute;
     grid.replaceChildren();
     for (const title of ['年月日','曜日','時刻','挿入位置','空き時間','タスク','超過時間','同期']) {
@@ -3631,10 +3685,18 @@
     for (let index = 0; index < 8; index++) {
       const track = document.createElement('div'); track.className = 'timeline-track' + (index === 0 ? ' date-track' : index === 1 ? ' weekday-track' : ''); track.style.height = `${height}px`; grid.appendChild(track); tracks.push(track);
     }
-    for (const [index, value] of [[0, displayDate], [1, '日月火水木金土'[dayStart.getDay()]]]) {
-      const label = document.createElement('div'); label.className = 'timeline-date-label'; label.textContent = value; tracks[index].appendChild(label);
+    for (let date = options.startDate; dateTimeToDate(date, '00:00') < dayEnd; date = dateAfterDays(date, 1)) {
+      const midnight = dateTimeToDate(date, '00:00');
+      const y = Math.max(0, (midnight - dayStart) / 60000 * pxPerMinute);
+      for (const [index, value] of [[0, date], [1, '日月火水木金土'[midnight.getDay()]]]) {
+        const label = document.createElement('div'); label.className = 'timeline-date-label'; label.textContent = value;
+        label.style.cssText = `position:absolute;left:0;right:0;top:${y}px;`;
+        tracks[index].appendChild(label);
+      }
     }
-    for (let minute = 0; minute < totalMinutes; minute += 30) {
+    const labelStride = Math.max(1, Math.ceil(16 / (42 * options.zoom / 100)));
+    for (let minute = 0, line = 0; minute < totalMinutes; minute += options.interval, line++) {
+      if (line % labelStride) continue;
       const tick = document.createElement('div'); tick.className = 'timeline-tick'; tick.style.top = `${minute * pxPerMinute}px`; tick.textContent = clock(new Date(dayStart.getTime() + minute * 60000)); tracks[2].appendChild(tick);
     }
     const overlaps = getOverlapContexts(mainEditor.tableBody), primary = [], overflow = [];
@@ -3675,7 +3737,7 @@
     drawSegments(primary, tracks[5], false); drawSegments(overflow, tracks[6], true);
     const checkPositions = [[], []];
     for (const item of primary) {
-      const baseTop = (item.from - dayStart) / 60000 * pxPerMinute + Math.max(0, (Math.min(item.to - item.from, 30 * 60000) / 60000 * pxPerMinute - 20) / 2);
+      const baseTop = (item.from - dayStart) / 60000 * pxPerMinute + Math.max(0, (Math.min(item.to - item.from, options.interval * 60000) / 60000 * pxPerMinute - 20) / 2);
       for (const [slot, column, selector, title] of [[0, 3, '.insert-check', '挿入位置'], [1, 7, '.sync-check', '同期']]) {
         let top = baseTop;
         while (checkPositions[slot].some(used => Math.abs(used - top) < 21)) top += 22;
@@ -3711,20 +3773,43 @@
   function setView(next) {
     view = next; closeMenu();
     mainEditor.tableWrap.hidden = next !== 'table'; root.hidden = next !== 'timeline';
-    document.getElementById('tableViewBtn').setAttribute('aria-pressed', String(next === 'table'));
-    document.getElementById('timelineViewBtn').setAttribute('aria-pressed', String(next === 'timeline'));
+    document.getElementById('tableViewBtn').checked = next === 'table';
+    document.getElementById('timelineViewBtn').checked = next === 'timeline';
     localStorage.setItem('dailyTaskManager.taskView', next); refresh();
   }
-  document.getElementById('tableViewBtn').onclick = () => setView('table');
-  document.getElementById('timelineViewBtn').onclick = () => setView('timeline');
-  dayInput.addEventListener('change', () => { const date = normalizeDateInputValue(dayInput.value); if (date) displayDate = date; refresh(); });
-  dateChoice.onchange = () => { if (dateChoice.value) { displayDate = dateChoice.value; refresh(); } };
-  document.getElementById('timelinePrevDay').onclick = () => { displayDate = dateAfterDays(displayDate || getCurrentDateString(), -1); refresh(); };
-  document.getElementById('timelineNextDay').onclick = () => { displayDate = dateAfterDays(displayDate || getCurrentDateString(), 1); refresh(); };
-  document.getElementById('timelineToday').onclick = () => { displayDate = getCurrentDateString(); refresh(); };
+  document.getElementById('tableViewBtn').onchange = event => { if (event.target.checked) setView('table'); };
+  document.getElementById('timelineViewBtn').onchange = event => { if (event.target.checked) setView('timeline'); };
+  for (const id of ['timelineDay', 'timelineStartTime', 'timelineEndDay', 'timelineEndTime']) {
+    const input = document.getElementById(id);
+    input.addEventListener('input', () => { rangeDirty = true; });
+    input.addEventListener('blur', () => { input.value = id === 'timelineDay' || id === 'timelineEndDay' ? normalizeDateInputValue(input.value) : normalizeTimeInputValue(input.value); });
+  }
+  document.getElementById('timelineApplyRange').onclick = () => {
+    const next = { ...options, startDate: normalizeDateInputValue(dayInput.value), startTime: normalizeTimeInputValue(document.getElementById('timelineStartTime').value), endDate: normalizeDateInputValue(document.getElementById('timelineEndDay').value), endTime: normalizeTimeInputValue(document.getElementById('timelineEndTime').value) };
+    if (!validPeriod(next)) { rangeStatus.textContent = '終了は開始より後の日時にしてください。表示が10,000行を超える場合は、期間を短くするか1行の時間を長くしてください。'; return; }
+    Object.assign(options, next); displayDate = options.startDate; rangeDirty = false; saveOptions(); refresh(); rangeStatus.textContent = '表示期間を保存しました。';
+  };
+  intervalInput.onchange = () => {
+    const next = Number(intervalInput.value);
+    if (!Number.isInteger(next) || next < 1 || next > 1440 || !validPeriod({ ...options, interval: next })) {
+      intervalInput.value = options.interval; rangeStatus.textContent = '1行の時間は1〜1440分で、表示全体が10,000行以内になるように設定してください。'; return;
+    }
+    options.interval = next; saveOptions(); refresh(); rangeStatus.textContent = `1行${next}分で保存しました。`;
+  };
+  zoomInput.oninput = () => { options.zoom = Number(zoomInput.value); saveOptions(); refresh(); };
+  dateChoice.onchange = () => { if (dateChoice.value) shiftPeriod(dateChoice.value); };
+  document.getElementById('timelinePrevDay').onclick = () => shiftPeriod(dateAfterDays(options.startDate || getCurrentDateString(), -1));
+  document.getElementById('timelineNextDay').onclick = () => shiftPeriod(dateAfterDays(options.startDate || getCurrentDateString(), 1));
+  document.getElementById('timelineToday').onclick = () => shiftPeriod(getCurrentDateString());
   document.getElementById('timelineNow').onclick = () => {
-    displayDate = getCurrentDateString(); render();
-    const now = new Date(), y = grid.getBoundingClientRect().top + scrollY + 36 + (now.getHours() * 60 + now.getMinutes()) * pxPerMinute;
+    const now = new Date();
+    const start = dateTimeToDate(options.startDate, options.startTime), end = dateTimeToDate(options.endDate, options.endTime);
+    if (!start || !end || now < start || now >= end) {
+      options.startDate = getCurrentDateString(); options.startTime = '00:00'; options.endDate = dateAfterDays(options.startDate, 1); options.endTime = '00:00'; rangeDirty = false; saveOptions();
+    }
+    render();
+    const rangeStart = dateTimeToDate(options.startDate, options.startTime);
+    const y = grid.getBoundingClientRect().top + scrollY + 36 + (now - rangeStart) / 60000 * pxPerMinute;
     const header = document.querySelector('.app-header').getBoundingClientRect().height + document.querySelector('#taskMode .task-toolbars').getBoundingClientRect().height;
     window.scrollTo({ top: Math.max(0, y - header - 30), behavior: 'smooth' });
   };
