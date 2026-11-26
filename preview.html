@@ -536,6 +536,7 @@
 
           <button id="bulkReset" type="button" class="btn-danger">登録用データ初期化</button>
           <button id="bulkSync" type="button" class="btn-sync">同期</button>
+          <button id="bulkMergeAdjacentTasksBtn" type="button" class="btn-sync">隣接している同名タスクを結合する</button>
           <label>CSVを読み込む <input id="bulkFile" type="file" accept=".csv,text/csv"></label>
           <button id="bulkImport" type="button">一括追加</button>
         </div>
@@ -629,6 +630,7 @@
       <button type="button" class="duration-task-btn" data-minutes="60">60分</button>
       <button id="resetAllBtn" type="button" class="btn-danger">保存データ初期化</button>
       <button id="syncAllBtn" type="button" class="btn-sync">同期</button>
+      <button id="mergeAdjacentTasksBtn" type="button" class="btn-sync">隣接している同名タスクを結合する</button>
       <button id="adjustCurrentTaskBtn" type="button" class="btn-sync" title="現在時刻を含む予定を完了調整します。開始と終了が同時刻なら終了する側を優先します。">現在時刻のタスクを完了調整</button>
       <button id="exportCsvBtn" type="button" class="btn-csv">CSV出力</button>
       <button id="notifyPermissionBtn" type="button">通知許可</button>
@@ -1452,6 +1454,51 @@
         input.value = input.dataset.previousValue ?? "";
       }
     }
+
+    function mergeAdjacentSameNameTasks() {
+      const rows = getRows();
+      const groups = [];
+      for (let index = 0; index < rows.length;) {
+        const name = rows[index].querySelector(".task-name").value.trim();
+        const group = [rows[index++]];
+        while (name && index < rows.length && rows[index].querySelector(".task-name").value.trim() === name) group.push(rows[index++]);
+        if (name && group.length > 1) groups.push(group);
+      }
+      if (!groups.length) { alert("隣接している同名タスクはありません。"); return; }
+      const plans = [];
+      for (const group of groups) {
+        const first = group[0], last = group.at(-1);
+        const start = dateTimeToDate(first.querySelector(".start-date").value, first.querySelector(".start-time").value);
+        const end = dateTimeToDate(last.querySelector(".end-date").value, last.querySelector(".end-time").value);
+        const durations = group.map(getWorkMinutesValue);
+        const total = durations.reduce((sum, minutes) => sum + (minutes ?? 0), 0);
+        if (!start || !end || end < start || durations.some(minutes => minutes === null) || !Number.isSafeInteger(total)) {
+          alert(`「${first.querySelector(".task-name").value}」の開始・終了日時と作業時間を確認してください。結合は実行していません。`);
+          return;
+        }
+        plans.push({ group, first, endDate: last.querySelector(".end-date").value, endTime: last.querySelector(".end-time").value, total });
+      }
+      const removed = plans.reduce((sum, plan) => sum + plan.group.length - 1, 0);
+      if (!confirm(`${plans.length}組の同名タスクを結合し、${removed}行をまとめますか？\n作業時間を合算し、先頭の開始日時・状態・同期と最後の終了日時を引き継ぎます。`)) return;
+      for (const { group, first, endDate, endTime, total } of plans) {
+        first.querySelector(".end-date").value = endDate;
+        first.querySelector(".end-time").value = endTime;
+        first.querySelector(".work-minutes-input").value = String(total);
+        first.dataset.taskDetail = isBulkEditor ? "" : group.map(row => row.dataset.taskDetail || "").filter(Boolean).join("\n\n");
+        if (group.some(row => row.querySelector(".insert-check").checked)) first.querySelector(".insert-check").checked = true;
+        if (group.includes(activeDetailRow)) {
+          activeDetailRow = first;
+          updateTaskDetailPanelTitle(first);
+          taskDetailTextarea.value = first.dataset.taskDetail;
+        }
+        group.slice(1).forEach(row => row.remove());
+      }
+      refreshSyncCheckboxState();
+      saveAll();
+    }
+
+    document.getElementById("mergeAdjacentTasksBtn").addEventListener("click", () => withEditor(false, mergeAdjacentSameNameTasks));
+    document.getElementById("bulkMergeAdjacentTasksBtn").addEventListener("click", () => withEditor(true, mergeAdjacentSameNameTasks));
 
     function mergeWithNext(tr) {
       const rows = getRows();
