@@ -73,6 +73,8 @@
       line-height: 1.2;
     }
 
+    button:disabled { opacity: .45; cursor: not-allowed; }
+
     button:hover { filter: brightness(1.08); }
 
     .btn-danger { background: var(--danger); }
@@ -597,6 +599,7 @@
       <div class="task-toolbars">
         <div class="toolbar">
           <button id="bulkAddTask" type="button">タスク作成</button>
+          <button id="undoBulkBtn" type="button" disabled title="直前の登録用タスク操作を取り消す">一つ戻る</button>
           <button type="button" class="bulk-duration-task-btn" data-minutes="10">10分</button>
           <button type="button" class="bulk-duration-task-btn" data-minutes="15">15分</button>
           <button type="button" class="bulk-duration-task-btn" data-minutes="20">20分</button>
@@ -691,6 +694,7 @@
     <div class="task-toolbars">
     <div class="toolbar">
       <button id="addTaskBtn" type="button">タスク作成</button>
+      <button id="undoTaskBtn" type="button" disabled title="直前のタスク操作を取り消す">一つ戻る</button>
       <button type="button" class="duration-task-btn" data-minutes="10">10分</button>
       <button type="button" class="duration-task-btn" data-minutes="15">15分</button>
       <button type="button" class="duration-task-btn" data-minutes="20">20分</button>
@@ -931,6 +935,54 @@
     function editorStorageKey(key) {
       return isBulkEditor ? (key === STORAGE_KEY_ROWS ? "dailyTaskManager.bulkDraft" : key + ".bulk") : key;
     }
+
+    const editorHistories = {
+      task: { current: null, entries: [], restoring: false },
+      bulk: { current: null, entries: [], restoring: false }
+    };
+    let undoActionGroup = {};
+    for (const type of ["focusin", "click", "change", "contextmenu", "drop"]) {
+      document.addEventListener(type, () => { undoActionGroup = {}; }, true);
+    }
+    function updateUndoButtons() {
+      document.getElementById("undoTaskBtn").disabled = editorHistories.task.entries.length === 0;
+      document.getElementById("undoBulkBtn").disabled = editorHistories.bulk.entries.length === 0;
+    }
+    function recordRowHistory(serialized) {
+      const history = isBulkEditor ? editorHistories.bulk : editorHistories.task;
+      if (!history.restoring && history.current !== null && history.current !== serialized) {
+        if (history.entries.at(-1)?.group !== undoActionGroup) {
+          history.entries.push({ snapshot: history.current, group: undoActionGroup });
+          if (history.entries.length > 50) history.entries.shift();
+        }
+      }
+      history.current = serialized;
+      updateUndoButtons();
+    }
+    function undoTaskAction(bulk) {
+      withEditor(bulk, () => {
+        const history = bulk ? editorHistories.bulk : editorHistories.task;
+        const entry = history.entries.pop();
+        if (!entry) return;
+        const position = { left: scrollX, top: scrollY };
+        history.restoring = true;
+        try {
+          window.taskTimeline?.closeMenu();
+          if (activeDetailRow?.parentElement === tableBody) closeTaskDetailPanel();
+          if (statusChoiceTargetRow?.parentElement === tableBody) closeStatusChoiceDialog();
+          getRows().forEach(row => { taskNotifyMap.delete(row); todoStartNotifyMap.delete(row); });
+          tableBody.replaceChildren();
+          JSON.parse(entry.snapshot).forEach(data => {
+            const row = addRow(data);
+            row.querySelector(".work-minutes-input").value = data.workMinutesText ?? "";
+          });
+          refreshSyncCheckboxState(); normalizeInsertPositionState(); saveAll();
+        } finally { history.restoring = false; updateUndoButtons(); }
+        window.scrollTo({ ...position, behavior: "instant" });
+      });
+    }
+    document.getElementById("undoTaskBtn").addEventListener("click", () => undoTaskAction(false));
+    document.getElementById("undoBulkBtn").addEventListener("click", () => undoTaskAction(true));
 
     const BULK_BASE_DATE = "2000-01-01";
     function dayDifference(a, b) {
@@ -2517,7 +2569,9 @@
 
     function saveRows() {
       const rows = getRows().map((tr) => readRowDataFromElement(tr));
-      localStorage.setItem(editorStorageKey(STORAGE_KEY_ROWS), JSON.stringify(rows));
+      const serialized = JSON.stringify(rows);
+      recordRowHistory(serialized);
+      localStorage.setItem(editorStorageKey(STORAGE_KEY_ROWS), serialized);
     }
 
     function saveColumnWidths() {
