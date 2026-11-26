@@ -472,7 +472,7 @@
 
 
     .sync-gap {
-      background: #245c38 !important;
+      background: #123f29 !important;
       color: #c9ffda !important;
       border-color: #5fe18b !important;
     }
@@ -512,6 +512,58 @@
     .memo-resize:focus-visible { outline: 2px solid #806e36; outline-offset: -2px; }
     @media (max-width: 540px) { body { padding: 12px; } .app-header { gap: 12px; } .memo-board { min-height: 75vh; } }
 </style>
+  <style>
+.task-view-switch { display: flex; gap: 4px; margin-top: 4px; }
+.task-view-switch button { padding: 7px 12px; background: var(--panel2); color: var(--muted); }
+.task-view-switch button[aria-pressed="true"] { background: var(--accent); color: white; }
+.timeline-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 10px 0; }
+.timeline-controls input { width: 140px; }
+.timeline-controls select, #timelineContextMenu select { background: #1b1b22; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 8px; max-width: 100%; }
+.timeline-help { color: var(--muted); font-size: 13px; }
+.timeline-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.timeline-grid { display: grid; grid-template-columns: 112px 38px 64px 62px 100px minmax(240px, 1.2fr) minmax(220px, 1fr) 64px; min-width: 920px; }
+.timeline-heading { background: var(--panel2); padding: 8px 4px; text-align: center; font-size: 13px; border-right: 1px solid var(--line); }
+.timeline-track { position: relative; border-right: 1px solid var(--line); background: repeating-linear-gradient(to bottom, transparent 0, transparent 41px, var(--line) 41px, var(--line) 42px); }
+.timeline-track.date-track, .timeline-track.weekday-track { background: var(--panel); }
+.timeline-date-label { padding-top: 8px; text-align: center; font: 13px Consolas, monospace; }
+.timeline-tick { position: absolute; right: 6px; font: 12px Consolas, monospace; color: var(--muted); }
+.timeline-block { display: flex; flex-direction: column; justify-content: flex-start; align-items: stretch; position: absolute; padding: 3px 6px; background: #344f77; color: var(--text); border: 1px solid #6d89af; border-radius: 5px; overflow: hidden; cursor: grab; font-size: 13px; line-height: 1.35; text-align: left; touch-action: auto; }
+.timeline-block.is-doing { background: #795615; border-color: var(--warning); }
+.timeline-block.is-done { background: #2b503a; }
+.timeline-block.is-overlap, .timeline-block.is-overflow { background: #7a2020; border-color: #e46161; }
+.timeline-block strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.timeline-block small { font-size: 11px; color: inherit; opacity: .85; display: block; }
+.timeline-block.is-selected, #timelineUnscheduled .is-selected { outline: 2px solid #5fe18b; outline-offset: -2px; box-shadow: 0 0 10px #5fe18b80; z-index: 15 !important; }
+#taskTable tbody tr.context-selected { outline: 2px solid #5fe18b; outline-offset: -2px; filter: drop-shadow(0 0 4px #5fe18b80); }
+#taskTable tbody tr.context-selected > td { box-shadow: inset 0 2px #5fe18b, inset 0 -2px #5fe18b; }
+.timeline-block.drop-before { border-top: 4px solid #5fe18b; }
+.timeline-block.drop-after { border-bottom: 4px solid #5fe18b; }
+.timeline-gap { position: absolute; left: 3px; right: 3px; background: #123f29; color: #c9ffda; border: 1px solid #347c50; border-radius: 4px; padding: 2px 4px; overflow: hidden; text-align: center; font-size: 11px; }
+.timeline-gap button { background: transparent; color: inherit; padding: 2px; font-size: 11px; width: 100%; }
+.timeline-check { position: absolute; left: 0; right: 0; text-align: center; height: 22px; }
+.timeline-check input { cursor: pointer; accent-color: #4a90e2; }
+.timeline-now { position: absolute; left: 0; right: 0; border-top: 2px solid #ffb300; pointer-events: none; z-index: 12; }
+#timelineContextMenu { position: fixed; z-index: 4000; min-width: 230px; max-width: min(340px, 95vw); max-height: 85vh; overflow-y: auto; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); box-shadow: 0 8px 28px #0008; }
+#timelineContextMenu > button { display: block; width: 100%; text-align: left; background: transparent; border-radius: 4px; padding: 9px; }
+#timelineContextMenu > button:hover { background: var(--panel); }
+#timelineContextMenu > label { display: block; font-size: 13px; padding: 8px; }
+#timelineContextMenu select { display: block; width: 100%; margin-top: 5px; }
+.timeline-menu-title { padding: 6px 9px; color: var(--muted); overflow-wrap: anywhere; }
+#timelineEditDialog { width: 460px; max-width: 94vw; background: var(--panel); color: var(--text); padding: 22px; border: 1px solid var(--line); border-radius: 10px; }
+#timelineEditDialog::backdrop { background: #0009; }
+#timelineEditDialog label { display: block; line-height: 1.8; }
+#timelineEditDialog input[type="text"] { display: block; }
+#timelineEditDialog input:disabled, #timelineEditDialog input[type="text"]:read-only { opacity: .55; }
+.timeline-edit-dates { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+#timelineEditError { color: #ff9999; }
+#timelineUnscheduled { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.timeline-unscheduled { background: var(--panel2); border: 1px solid var(--line); padding: 8px; border-radius: 6px; cursor: grab; }
+
+.timeline-block strong, .timeline-block small { flex-shrink: 0; }
+.timeline-block.is-compact { padding: 1px 4px; }
+.timeline-block.is-compact strong { font-size: 12px; line-height: 14px; }
+.timeline-block.is-compact small { display: none; }
+  </style>
 </head>
 <body>
   <div class="wrap">
@@ -647,6 +699,10 @@
     </div>
 
     <div id="templateButtons" aria-label="テンプレからタスクを追加"></div>
+    <div class="task-view-switch" role="group" aria-label="タスクの表示形式">
+      <button id="tableViewBtn" type="button" aria-pressed="true">表形式</button>
+      <button id="timelineViewBtn" type="button" aria-pressed="false">タイムライン形式</button>
+    </div>
     </div>
 
     <div class="table-wrap" id="tableWrap">
@@ -691,6 +747,20 @@
       </table>
     </div>
 
+    <section id="timelineView" aria-label="タスクのタイムライン" hidden>
+      <div class="timeline-controls">
+        <button id="timelinePrevDay" type="button">前日</button>
+        <label>表示日 <input id="timelineDay" type="text" class="date-input" inputmode="numeric" placeholder="YYYY-MM-DD" maxlength="10"></label>
+        <button id="timelineNextDay" type="button">翌日</button>
+        <label>予定のある日 <select id="timelineDayChoices" aria-label="予定のある日"></select></label>
+        <button id="timelineToday" type="button">今日</button>
+        <button id="timelineNow" type="button">現在時刻へ</button>
+      </div>
+      <p class="timeline-help">右クリックで編集・操作／ドラッグで行順を入れ替え（上半分にドロップで前、下半分で後）。日時が固定の行は、並べ替えても時刻を維持します。</p>
+      <div class="timeline-scroll"><div id="timelineGrid" class="timeline-grid"></div></div>
+      <div id="timelineUnscheduled"></div>
+    </section>
+
     <div class="hint">
       ※ 行移動は三本線だけドラッグできるっす。<br />
       ※ 列の右端をドラッグすると、その列の横幅を変更できるっす。<br />
@@ -704,7 +774,7 @@
       ※ Tab移動は 予定開始 → 予定終了 → タスク → 次の行 の順っす。<br />
       ※ 開始日時を変えると作業時間を保って終了日時も移動するっす。終了日時を変えると作業時間を再計算するっす。同期ONの開始日時は、同期を外してから編集するっす。<br />
       ※ 「仕掛 → 完了」では確認後に状態だけ変更し、時刻は変更しないっす。「完了」を押すと「未着手に戻す／完了調整にする」を選択でき、完了調整を選んだ場合だけ再確認後に予定終了を現在時刻へ更新し、後続同期行へ連鎖反映するっす。<br />
-      ※ 日またぎ対応は有効で、作業時間が15時間を超える場合は0分扱いっす。<br />
+      ※ 日またぎ対応は有効で、作業時間は日付を含めて計算するっす。<br />
       ※ CSV出力では、表の内容を現在の並び順そのままで保存するっす。<br />
       ※ 初期表示と保存データ初期化後は、行が0件の状態になるっす。<br />
       ※ 時間内通知・時間外通知・未着手開始通知は、それぞれ個別にON/OFFできるっす。<br />
@@ -1260,6 +1330,10 @@
     }
 
     function bindRowEvents(tr) {
+      tr.addEventListener("contextmenu", event => {
+        if (tr.parentElement !== mainEditor.tableBody || !window.taskTimeline) return;
+        event.preventDefault(); window.taskTimeline.openMenu(tr, event.clientX, event.clientY);
+      });
       tr.tabIndex = -1;
       tr.addEventListener("click", event => {
         if (!event.target.closest("input, button, select, textarea, .drag-handle")) tr.focus();
@@ -1385,6 +1459,8 @@
           splitOverlapAfterFixedRow(tr);
         } else if (action === "moveOverlap") {
           moveOverlapAfterFixedRows(tr);
+        } else if (action === "insertGap") {
+          insertGapTask(tr);
         } else if (action === "merge") {
           if (!tr.nextElementSibling || !confirm("下のタスクと結合しますか？\n作業時間を合計し、この行の開始時刻・ステータスを引き継ぎます。")) return;
           mergeWithNext(tr);
@@ -2291,6 +2367,26 @@
     }
 
 
+    function getGapBelow(row) {
+      const next = row.nextElementSibling;
+      if (!next || next.querySelector(".sync-check").checked) return null;
+      const start = dateTimeToDate(row.querySelector(".end-date").value, row.querySelector(".end-time").value);
+      const end = dateTimeToDate(next.querySelector(".start-date").value, next.querySelector(".start-time").value);
+      if (!start || !end || end - start < 60000) return null;
+      return { next, start, end, minutes: Math.round((end - start) / 60000) };
+    }
+
+    function insertGapTask(row) {
+      const gap = getGapBelow(row);
+      if (!gap || getOverlapBelow(row)) return;
+      const added = addRow({ startDate: row.querySelector(".end-date").value, startTime: row.querySelector(".end-time").value,
+        endDate: gap.next.querySelector(".start-date").value, endTime: gap.next.querySelector(".start-time").value,
+        taskName: "空白期間", workMinutesText: String(gap.minutes), status: STATUS_TODO, sync: true, insertPosition: false }, row);
+      applySyncFromIndex(getRows().indexOf(added) + 1);
+      refreshSyncCheckboxState();
+      saveAll();
+    }
+
     function getOverlapContexts(body = tableBody) {
       const rows = getRows(body);
       const result = new Map();
@@ -2374,16 +2470,17 @@
       const overlaps = getOverlapContexts();
       getRows().forEach(row => {
         const overlap = overlaps.get(row);
-        const next = row.nextElementSibling;
-        const end = dateTimeToDate(row.querySelector(".end-date").value, row.querySelector(".end-time").value);
-        const nextStart = next ? dateTimeToDate(next.querySelector(".start-date").value, next.querySelector(".start-time").value) : null;
-        const gap = !overlap && row.querySelector(".sync-check").checked && next && !next.querySelector(".sync-check").checked
-          && end && nextStart && nextStart - end >= 60000;
+        const gap = !overlap && !!getGapBelow(row);
         row.querySelector(".end-time").classList.toggle("sync-gap", !!gap);
         for (const field of [".end-date", ".end-time"]) row.querySelector(field)?.classList.toggle("sync-overlap", !!overlap);
         for (const field of [".start-date", ".start-time"]) row.querySelector(field)?.classList.toggle("sync-overlap", !!overlap?.full);
         const select = row.querySelector(".task-action-select");
         const action = overlap ? (overlap.full ? "moveOverlap" : "splitOverlap") : null;
+        const gapOption = select.querySelector('option[value="insertGap"]');
+        if (!gap) gapOption?.remove();
+        else if (!gapOption) {
+          const option = document.createElement("option"); option.value = "insertGap"; option.textContent = "空白期間を挿入"; select.appendChild(option);
+        }
         for (const value of ["splitOverlap", "moveOverlap"]) {
           const existing = select.querySelector(`option[value="${value}"]`);
           if (value !== action) existing?.remove();
@@ -2401,6 +2498,7 @@
       saveRows();
       saveColumnWidths();
       saveTableWidth();
+      window.taskTimeline?.refresh();
     }
 
     function saveRows() {
@@ -3028,6 +3126,7 @@
         const template = mode === "template";
         const bulk = mode === "bulk";
         selectEditor(bulk);
+        window.taskTimeline?.closeMenu();
         document.getElementById("taskHeaderActions").hidden = mode !== "task";
         document.getElementById("bulkHeaderActions").hidden = !bulk;
         document.getElementById("bulkMode").hidden = !bulk;
@@ -3043,6 +3142,7 @@
         memoButton.setAttribute("aria-pressed", String(memo));
         try { localStorage.setItem(MODE_KEY, bulk ? "bulk" : template ? "template" : settings ? "settings" : memo ? "memo" : "task"); } catch {}
         currentMode = mode;
+        if (mode === "task") window.taskTimeline?.refresh();
         window.scrollTo({ ...position, behavior: "instant" });
         requestAnimationFrame(() => {
           if (version === modeChangeVersion) window.scrollTo({ ...position, behavior: "instant" });
@@ -3366,6 +3466,280 @@
       new ResizeObserver(updateHeaderHeight).observe(header);
       updateHeaderHeight();
     })();
+  </script>
+  <script>
+(() => {
+  const root = document.getElementById('timelineView');
+  const grid = document.getElementById('timelineGrid');
+  const menu = document.createElement('div');
+  menu.id = 'timelineContextMenu'; menu.hidden = true; menu.setAttribute('role', 'menu'); menu.setAttribute('aria-label', 'タスクの編集と操作'); document.body.appendChild(menu);
+  const dialog = document.createElement('dialog');
+  dialog.id = 'timelineEditDialog'; dialog.setAttribute('aria-labelledby', 'timelineEditTitle');
+  dialog.innerHTML = `<form id="timelineEditForm"><h2 id="timelineEditTitle">タスクの日時・作業時間</h2>
+    <p><label>タスク <input id="timelineEditName" type="text"></label></p>
+    <div class="timeline-edit-dates"><label>予定開始日 <input id="timelineEditStartDate" type="text" class="date-input" inputmode="numeric" maxlength="10" required></label><label>予定開始 <input id="timelineEditStartTime" type="text" class="time-input" inputmode="numeric" maxlength="5" required></label></div>
+    <p><label><input id="timelineEditSync" type="checkbox"> 前の行の終了日時に同期</label></p>
+    <p><label><input id="timelineEditUseEnd" type="checkbox" checked> 終了日時を入力する</label></p>
+    <div class="timeline-edit-dates"><label>予定終了日 <input id="timelineEditEndDate" type="text" class="date-input" inputmode="numeric" maxlength="10" required></label><label>予定終了 <input id="timelineEditEndTime" type="text" class="time-input" inputmode="numeric" maxlength="5" required></label></div>
+    <p><label>作業時間（分） <input id="timelineEditMinutes" type="text" inputmode="numeric" required></label></p>
+    <p id="timelineEditError" role="alert"></p><button type="submit">保存</button> <button id="timelineEditCancel" type="button">キャンセル</button></form>`;
+  document.body.appendChild(dialog);
+  const dayInput = document.getElementById('timelineDay');
+  const dateChoice = document.getElementById('timelineDayChoices');
+  let view = localStorage.getItem('dailyTaskManager.taskView') === 'timeline' ? 'timeline' : 'table';
+  let selected = null, dragging = null, frame = 0, displayDate = '', editing = null;
+  const pxPerMinute = 1.4;
+  const allRows = () => getRows(mainEditor.tableBody);
+  const range = row => ({
+    start: dateTimeToDate(row.querySelector('.start-date').value, row.querySelector('.start-time').value),
+    end: dateTimeToDate(row.querySelector('.end-date').value, row.querySelector('.end-time').value)
+  });
+  const name = row => row.querySelector('.task-name').value.trim() || '名称未入力のタスク';
+  const clock = date => `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+  function selectRow(row) {
+    selected = row;
+    allRows().forEach(item => item.classList.toggle('context-selected', item === row));
+    document.querySelectorAll('[data-timeline-row]').forEach(element => element.classList.toggle('is-selected', allRows()[Number(element.dataset.timelineRow)] === row));
+  }
+  function closeMenu() { menu.hidden = true; }
+  function openMenu(row, x, y) {
+    if (!row?.isConnected) return;
+    selectRow(row); menu.replaceChildren();
+    const title = document.createElement('div'); title.className = 'timeline-menu-title'; title.textContent = name(row); menu.appendChild(title);
+    function item(text, callback) {
+      const button = document.createElement('button'); button.type = 'button'; button.setAttribute('role', 'menuitem'); button.textContent = text;
+      button.addEventListener('click', () => { closeMenu(); if (row.isConnected) withEditor(false, callback); }); menu.appendChild(button);
+    }
+    item('作業時間を入力する', () => {
+      const value = prompt('作業時間を入力してください（分）', String(getWorkMinutesValue(row) ?? ''));
+      if (value === null) return;
+      if (!/^\d+$/.test(value.trim()) || !Number.isSafeInteger(Number(value))) { alert('作業時間は0以上の整数で入力してください。'); return; }
+      const input = row.querySelector('.work-minutes-input'); input.value = value; handleWorkMinutesBlur(row, input);
+    });
+    item('開始日〜終了時刻、作業時間を入力する', () => openEdit(row));
+    item(`状態を変更（${row.querySelector('.btn-status').dataset.status}）`, () => cycleStatus(row));
+    item('削除', () => row.querySelector('.delete-btn').click());
+    const label = document.createElement('label'); label.textContent = '操作';
+    const operations = document.createElement('select'); operations.setAttribute('aria-label', 'タスクの操作');
+    row.querySelectorAll('.task-action-select option').forEach(option => operations.appendChild(option.cloneNode(true)));
+    operations.addEventListener('change', () => {
+      const action = operations.value; closeMenu();
+      if (row.isConnected) withEditor(false, () => { const original = row.querySelector('.task-action-select'); original.value = action; original.dispatchEvent(new Event('change', { bubbles: true })); });
+    });
+    label.appendChild(operations); menu.appendChild(label);
+    menu.hidden = false;
+    menu.style.left = `${Math.max(4, Math.min(x, innerWidth - menu.offsetWidth - 4))}px`;
+    menu.style.top = `${Math.max(4, Math.min(y, innerHeight - menu.offsetHeight - 4))}px`;
+    menu.querySelector('button')?.focus({ preventScroll: true });
+  }
+  function bindTask(element, row, index) {
+    element.dataset.timelineRow = index;
+    element.classList.toggle('is-selected', selected === row);
+    element.draggable = true;
+    element.addEventListener('click', event => { if (!event.target.closest('input')) selectRow(row); });
+    element.addEventListener('contextmenu', event => { event.preventDefault(); event.stopPropagation(); openMenu(row, event.clientX, event.clientY); });
+    element.addEventListener('dragstart', event => { dragging = row; closeMenu(); selectRow(row); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', String(index)); });
+    element.addEventListener('dragover', event => {
+      if (!dragging || dragging === row) return;
+      event.preventDefault(); event.dataTransfer.dropEffect = 'move';
+      const before = event.clientY < element.getBoundingClientRect().top + element.offsetHeight / 2;
+      element.classList.toggle('drop-before', before); element.classList.toggle('drop-after', !before);
+    });
+    element.addEventListener('dragleave', () => element.classList.remove('drop-before', 'drop-after'));
+    element.addEventListener('drop', event => {
+      event.preventDefault(); event.stopPropagation();
+      if (!dragging || dragging === row || !dragging.isConnected || !row.isConnected) return;
+      const before = event.clientY < element.getBoundingClientRect().top + element.offsetHeight / 2;
+      withEditor(false, () => {
+        const oldIndex = allRows().indexOf(dragging);
+        row.insertAdjacentElement(before ? 'beforebegin' : 'afterend', dragging);
+        const newIndex = allRows().indexOf(dragging);
+        refreshSyncCheckboxState(); applySyncFromIndex(Math.min(oldIndex, newIndex)); saveAll();
+      });
+      dragging = null;
+    });
+    element.addEventListener('dragend', () => { dragging = null; document.querySelectorAll('.drop-before,.drop-after').forEach(item => item.classList.remove('drop-before', 'drop-after')); });
+    element.addEventListener('keydown', event => {
+      if ((event.key === 'ContextMenu') || (event.shiftKey && event.key === 'F10')) { event.preventDefault(); const r = element.getBoundingClientRect(); openMenu(row, r.left + 12, r.top + 12); }
+    });
+  }
+  function openEdit(row) {
+    editing = row;
+    const data = readRowDataFromElement(row), form = document.getElementById('timelineEditForm'); form.reset();
+    const field = key => document.getElementById('timelineEdit' + key);
+    for (const [key, property] of [['Name','taskName'],['StartDate','startDate'],['StartTime','startTime'],['EndDate','endDate'],['EndTime','endTime'],['Minutes','workMinutesText']]) field(key).value = data[property] || '';
+    field('Error').textContent = ''; field('Sync').checked = data.sync; field('Sync').disabled = allRows().indexOf(row) === 0;
+    function syncFields() {
+      const prev = row.previousElementSibling, linked = field('Sync').checked && prev;
+      if (linked) { field('StartDate').value = prev.querySelector('.end-date').value; field('StartTime').value = prev.querySelector('.end-time').value; }
+      field('StartDate').readOnly = field('StartTime').readOnly = !!linked;
+    }
+    function endMode() {
+      const explicit = field('UseEnd').checked;
+      field('EndDate').disabled = field('EndTime').disabled = !explicit; field('Minutes').disabled = explicit;
+    }
+    for (const key of ['StartDate','EndDate']) field(key).onblur = () => { field(key).value = normalizeDateInputValue(field(key).value); };
+    for (const key of ['StartTime','EndTime']) field(key).onblur = () => { field(key).value = normalizeTimeInputValue(field(key).value); };
+    field('Sync').onchange = syncFields; field('UseEnd').onchange = endMode; syncFields(); endMode();
+    form.onsubmit = event => {
+      event.preventDefault();
+      if (!editing?.isConnected) { dialog.close(); return; }
+      syncFields();
+      const startDate = normalizeDateInputValue(field('StartDate').value), startTime = normalizeTimeInputValue(field('StartTime').value);
+      const start = dateTimeToDate(startDate, startTime);
+      let endDate = normalizeDateInputValue(field('EndDate').value), endTime = normalizeTimeInputValue(field('EndTime').value), minutes;
+      if (!start) { field('Error').textContent = '開始日時を確認してください。'; return; }
+      if (field('UseEnd').checked) {
+        const end = dateTimeToDate(endDate, endTime);
+        if (!end || end < start) { field('Error').textContent = '終了日時は開始日時以降にしてください。'; return; }
+        minutes = Math.round((end - start) / 60000);
+      } else {
+        const text = field('Minutes').value.trim();
+        if (!/^\d+$/.test(text) || !Number.isSafeInteger(Number(text))) { field('Error').textContent = '作業時間は0以上の整数で入力してください。'; return; }
+        minutes = Number(text); const end = addMinutesToDateTimeString(startDate, startTime, minutes); endDate = end.date; endTime = end.time;
+      }
+      withEditor(false, () => {
+        applyRowDataToElement(editing, { ...readRowDataFromElement(editing), taskName: field('Name').value, startDate, startTime, endDate, endTime, workMinutesText: String(minutes), sync: field('Sync').checked });
+        refreshSyncCheckboxState(); applySyncFromIndex(allRows().indexOf(editing) + 1); saveAll();
+      });
+      dialog.close();
+    };
+    document.getElementById('timelineEditCancel').onclick = () => dialog.close();
+    dialog.showModal();
+  }
+  function render() {
+    if (view !== 'timeline' || document.getElementById('taskMode').hidden) return;
+    const rows = allRows();
+    if (selected && !selected.isConnected) selected = null;
+    const timed = rows.map((row, index) => ({ row, index, ...range(row) })).filter(item => item.start && item.end && item.end >= item.start);
+    const dates = new Set();
+    timed.forEach(item => { dates.add(formatDateString(item.start)); dates.add(formatDateString(item.end)); });
+    const sortedDates = [...dates].sort();
+    if (!displayDate) displayDate = dates.has(getCurrentDateString()) ? getCurrentDateString() : sortedDates[0] || getCurrentDateString();
+    dayInput.value = displayDate;
+    dateChoice.replaceChildren();
+    const placeholder = document.createElement('option'); placeholder.value = ''; placeholder.textContent = '日付を選択'; dateChoice.appendChild(placeholder);
+    sortedDates.forEach(date => { const option = document.createElement('option'); option.value = date; option.textContent = date; dateChoice.appendChild(option); });
+    dateChoice.value = dates.has(displayDate) ? displayDate : '';
+    const dayStart = dateTimeToDate(displayDate, '00:00'), dayEnd = dateTimeToDate(dateAfterDays(displayDate, 1), '00:00');
+    const totalMinutes = (dayEnd - dayStart) / 60000, height = totalMinutes * pxPerMinute;
+    grid.replaceChildren();
+    for (const title of ['年月日','曜日','時刻','挿入位置','空き時間','タスク','超過時間','同期']) {
+      const h = document.createElement('div'); h.className = 'timeline-heading'; h.textContent = title; grid.appendChild(h);
+    }
+    const tracks = [];
+    for (let index = 0; index < 8; index++) {
+      const track = document.createElement('div'); track.className = 'timeline-track' + (index === 0 ? ' date-track' : index === 1 ? ' weekday-track' : ''); track.style.height = `${height}px`; grid.appendChild(track); tracks.push(track);
+    }
+    for (const [index, value] of [[0, displayDate], [1, '日月火水木金土'[dayStart.getDay()]]]) {
+      const label = document.createElement('div'); label.className = 'timeline-date-label'; label.textContent = value; tracks[index].appendChild(label);
+    }
+    for (let minute = 0; minute < totalMinutes; minute += 30) {
+      const tick = document.createElement('div'); tick.className = 'timeline-tick'; tick.style.top = `${minute * pxPerMinute}px`; tick.textContent = clock(new Date(dayStart.getTime() + minute * 60000)); tracks[2].appendChild(tick);
+    }
+    const overlaps = getOverlapContexts(mainEditor.tableBody), primary = [], overflow = [];
+    function segment(item, from, to, destination) {
+      if (to < dayStart || from >= dayEnd || (to.getTime() === dayStart.getTime() && to > from)) return;
+      const start = Math.max(from, dayStart), end = Math.min(to, dayEnd);
+      destination.push({ ...item, from: start, to: Math.max(start, end) });
+    }
+    timed.forEach(item => {
+      const overlap = overlaps.get(item.row);
+      const cut = overlap && !overlap.full ? overlap.cut : item.end;
+      segment(item, item.start, cut, primary);
+      if (overlap) segment(item, overlap.full ? item.start : overlap.cut, item.end, overflow);
+    });
+    function drawSegments(segments, track, isOverflow) {
+      const lanes = [];
+      segments.sort((a, b) => a.from - b.from || a.index - b.index);
+      for (const item of segments) {
+        let lane = lanes.findIndex(end => end <= item.from); if (lane < 0) lane = lanes.length;
+        item.lane = lane; lanes[lane] = Math.max(item.to, item.from + 1);
+      }
+      const count = Math.max(1, lanes.length);
+      for (const item of segments) {
+        const state = item.row.querySelector('.btn-status').dataset.status;
+        const block = document.createElement('button'); block.type = 'button'; block.className = 'timeline-block';
+        if (isOverflow) block.classList.add('is-overflow');
+        else if (overlaps.has(item.row)) block.classList.add('is-overlap');
+        else if (state === STATUS_DOING) block.classList.add('is-doing');
+        else if (state === STATUS_DONE || state === STATUS_DONE_ADJUSTED) block.classList.add('is-done');
+        if ((item.to - item.from) / 60000 * pxPerMinute < 40) block.classList.add("is-compact");
+        block.style.cssText = `top:${(item.from - dayStart) / 60000 * pxPerMinute}px;height:${Math.max(18, (item.to - item.from) / 60000 * pxPerMinute)}px;left:calc(${item.lane / count * 100}% + 2px);width:calc(${100 / count}% - 4px);`;
+        const title = document.createElement('strong'); title.textContent = name(item.row);
+        const detail = document.createElement('small'); detail.textContent = isOverflow ? `${clock(new Date(item.from))}〜${clock(new Date(item.to))} · 超過${Math.round((item.to - item.from) / 60000)}分` : `${clock(item.start)}〜${clock(item.end)} · ${state}`;
+        block.append(title, detail); block.title = `${name(item.row)}\n${formatDateString(item.start)} ${clock(item.start)}〜${formatDateString(item.end)} ${clock(item.end)}\n${getWorkMinutesValue(item.row) ?? ''}分／${state}`;
+        bindTask(block, item.row, item.index); track.appendChild(block);
+      }
+    }
+    drawSegments(primary, tracks[5], false); drawSegments(overflow, tracks[6], true);
+    const checkPositions = [[], []];
+    for (const item of primary) {
+      const baseTop = (item.from - dayStart) / 60000 * pxPerMinute + Math.max(0, (Math.min(item.to - item.from, 30 * 60000) / 60000 * pxPerMinute - 20) / 2);
+      for (const [slot, column, selector, title] of [[0, 3, '.insert-check', '挿入位置'], [1, 7, '.sync-check', '同期']]) {
+        let top = baseTop;
+        while (checkPositions[slot].some(used => Math.abs(used - top) < 21)) top += 22;
+        checkPositions[slot].push(top);
+        const label = document.createElement('label'); label.className = 'timeline-check'; label.style.top = `${top}px`;
+        const input = document.createElement('input'); input.type = 'checkbox'; input.checked = item.row.querySelector(selector).checked; input.disabled = item.row.querySelector(selector).disabled; input.setAttribute('aria-label', `${name(item.row)}の${title}`);
+        input.addEventListener('change', () => withEditor(false, () => item.row.querySelector(selector).click())); label.appendChild(input); tracks[column].appendChild(label);
+      }
+    }
+    rows.forEach(row => {
+      const gap = getGapBelow(row); if (!gap || overlaps.has(row) || gap.end <= dayStart || gap.start >= dayEnd) return;
+      const start = Math.max(gap.start, dayStart), end = Math.min(gap.end, dayEnd);
+      const block = document.createElement('div'); block.className = 'timeline-gap'; block.style.top = `${(start - dayStart) / 60000 * pxPerMinute}px`; block.style.height = `${Math.max(22, (end - start) / 60000 * pxPerMinute)}px`;
+      const button = document.createElement('button'); button.type = 'button'; button.textContent = `${gap.minutes}分の空き`; button.title = '空白期間を挿入';
+      button.onclick = () => withEditor(false, () => insertGapTask(row)); block.appendChild(button); tracks[4].appendChild(block);
+      block.addEventListener('contextmenu', event => { event.preventDefault(); openMenu(row, event.clientX, event.clientY); });
+    });
+    const now = new Date();
+    if (now >= dayStart && now < dayEnd) for (const track of tracks.slice(2)) {
+      const line = document.createElement('div'); line.className = 'timeline-now'; line.style.top = `${(now - dayStart) / 60000 * pxPerMinute}px`; track.appendChild(line);
+    }
+    const untimed = document.getElementById('timelineUnscheduled'); untimed.replaceChildren();
+    rows.forEach((row, index) => {
+      if (timed.some(item => item.row === row)) return;
+      const block = document.createElement('button'); block.type = 'button'; block.className = 'timeline-unscheduled'; block.textContent = `${name(row)}（日時未設定）`; bindTask(block, row, index); untimed.appendChild(block);
+    });
+    if (!rows.length) { const empty = document.createElement('p'); empty.textContent = 'タスクがありません。「タスク作成」またはテンプレから追加できます。'; untimed.appendChild(empty); }
+  }
+  function refresh() {
+    if (frame) cancelAnimationFrame(frame);
+    frame = requestAnimationFrame(() => { frame = 0; render(); });
+  }
+  function setView(next) {
+    view = next; closeMenu();
+    mainEditor.tableWrap.hidden = next !== 'table'; root.hidden = next !== 'timeline';
+    document.getElementById('tableViewBtn').setAttribute('aria-pressed', String(next === 'table'));
+    document.getElementById('timelineViewBtn').setAttribute('aria-pressed', String(next === 'timeline'));
+    localStorage.setItem('dailyTaskManager.taskView', next); refresh();
+  }
+  document.getElementById('tableViewBtn').onclick = () => setView('table');
+  document.getElementById('timelineViewBtn').onclick = () => setView('timeline');
+  dayInput.addEventListener('change', () => { const date = normalizeDateInputValue(dayInput.value); if (date) displayDate = date; refresh(); });
+  dateChoice.onchange = () => { if (dateChoice.value) { displayDate = dateChoice.value; refresh(); } };
+  document.getElementById('timelinePrevDay').onclick = () => { displayDate = dateAfterDays(displayDate || getCurrentDateString(), -1); refresh(); };
+  document.getElementById('timelineNextDay').onclick = () => { displayDate = dateAfterDays(displayDate || getCurrentDateString(), 1); refresh(); };
+  document.getElementById('timelineToday').onclick = () => { displayDate = getCurrentDateString(); refresh(); };
+  document.getElementById('timelineNow').onclick = () => {
+    displayDate = getCurrentDateString(); render();
+    const now = new Date(), y = grid.getBoundingClientRect().top + scrollY + 36 + (now.getHours() * 60 + now.getMinutes()) * pxPerMinute;
+    const header = document.querySelector('.app-header').getBoundingClientRect().height + document.querySelector('#taskMode .task-toolbars').getBoundingClientRect().height;
+    window.scrollTo({ top: Math.max(0, y - header - 30), behavior: 'smooth' });
+  };
+  document.addEventListener('pointerdown', event => {
+    if (menu.contains(event.target)) return;
+    closeMenu();
+    if (!event.target.closest('[data-timeline-row],#taskTable tbody tr,#timelineEditDialog')) selectRow(null);
+  });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape') closeMenu(); });
+  addEventListener('resize', closeMenu);
+  addEventListener('scroll', closeMenu, { passive: true });
+  window.taskTimeline = { refresh, openMenu, closeMenu };
+  setView(view);
+  setInterval(() => { if (view === 'timeline' && !document.getElementById('taskMode').hidden && !dragging && menu.hidden && !dialog.open && !root.contains(document.activeElement)) refresh(); }, 60000);
+})();
   </script>
 </body>
 </html>
