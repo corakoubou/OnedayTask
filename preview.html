@@ -1375,6 +1375,8 @@
           splitTask(tr, true, true);
         } else if (action === "splitOverlap") {
           splitOverlapAfterFixedRow(tr);
+        } else if (action === "moveOverlap") {
+          moveOverlapAfterFixedRows(tr);
         } else if (action === "merge") {
           if (!tr.nextElementSibling || !confirm("下のタスクと結合しますか？\n作業時間を合計し、この行の開始時刻・ステータスを引き継ぎます。")) return;
           mergeWithNext(tr);
@@ -2236,18 +2238,57 @@
     }
 
 
+    function getOverlapContexts(body = tableBody) {
+      const rows = getRows(body);
+      const result = new Map();
+      for (let i = 1; i < rows.length; i++) {
+        const fixed = rows[i];
+        if (fixed.querySelector(".sync-check").checked) continue;
+        const cut = dateTimeToDate(fixed.querySelector(".start-date").value, fixed.querySelector(".start-time").value);
+        if (!cut) continue;
+        for (let j = i - 1; j >= 0; j--) {
+          const row = rows[j];
+          const start = dateTimeToDate(row.querySelector(".start-date").value, row.querySelector(".start-time").value);
+          const end = dateTimeToDate(row.querySelector(".end-date").value, row.querySelector(".end-time").value);
+          if (!end || end <= cut) break;
+          const full = !!start && start > cut;
+          const existing = result.get(row);
+          if (!existing || cut < existing.cut) result.set(row, { next: fixed, cut, full, minutes: Math.round((end - cut) / 60000) });
+          if (!full) break;
+        }
+      }
+      return result;
+    }
+
     function getOverlapBelow(row) {
-      const next = row.nextElementSibling;
-      if (!next || next.querySelector(".sync-check").checked) return null;
+      return getOverlapContexts(row.parentElement).get(row) || null;
+    }
+
+    function moveOverlapAfterFixedRows(row) {
+      const overlap = getOverlapBelow(row);
+      if (!overlap?.full) return;
+      let lastFixed = overlap.next;
+      while (lastFixed.nextElementSibling && !lastFixed.nextElementSibling.querySelector(".sync-check").checked) lastFixed = lastFixed.nextElementSibling;
+      const start = dateTimeToDate(row.querySelector(".start-date").value, row.querySelector(".start-time").value);
       const end = dateTimeToDate(row.querySelector(".end-date").value, row.querySelector(".end-time").value);
-      const cut = dateTimeToDate(next.querySelector(".start-date").value, next.querySelector(".start-time").value);
-      if (!end || !cut || end <= cut) return null;
-      return { next, cut, minutes: Math.round((end - cut) / 60000) };
+      const resume = dateTimeToDate(lastFixed.querySelector(".end-date").value, lastFixed.querySelector(".end-time").value);
+      if (!start || !end || end < start || !resume || resume < overlap.cut) {
+        alert("移動するタスクと、移動先の非同期タスクの開始・終了日時を確認してください。");
+        return;
+      }
+      const oldIndex = getRows().indexOf(row);
+      row.querySelector(".work-minutes-input").value = String(Math.round((end - start) / 60000));
+      lastFixed.insertAdjacentElement("afterend", row);
+      row.querySelector(".sync-check").checked = true;
+      syncRowFromPrevious(row, lastFixed);
+      refreshSyncCheckboxState();
+      applySyncFromIndex(oldIndex);
+      saveAll();
     }
 
     function splitOverlapAfterFixedRow(row) {
       const overlap = getOverlapBelow(row);
-      if (!overlap) return;
+      if (!overlap || overlap.full) return;
       let lastFixed = overlap.next;
       while (lastFixed.nextElementSibling && !lastFixed.nextElementSibling.querySelector(".sync-check").checked) {
         lastFixed = lastFixed.nextElementSibling;
@@ -2277,24 +2318,28 @@
     }
 
     function updateSyncOverlapWarning() {
+      const overlaps = getOverlapContexts();
       getRows().forEach(row => {
-        const overlap = getOverlapBelow(row);
+        const overlap = overlaps.get(row);
         const next = row.nextElementSibling;
         const end = dateTimeToDate(row.querySelector(".end-date").value, row.querySelector(".end-time").value);
         const nextStart = next ? dateTimeToDate(next.querySelector(".start-date").value, next.querySelector(".start-time").value) : null;
-        const gap = row.querySelector(".sync-check").checked && next && !next.querySelector(".sync-check").checked
+        const gap = !overlap && row.querySelector(".sync-check").checked && next && !next.querySelector(".sync-check").checked
           && end && nextStart && nextStart - end >= 60000;
         row.querySelector(".end-time").classList.toggle("sync-gap", !!gap);
-        row.querySelector(".end-date")?.classList.toggle("sync-overlap", !!overlap);
-        row.querySelector(".end-time")?.classList.toggle("sync-overlap", !!overlap);
+        for (const field of [".end-date", ".end-time"]) row.querySelector(field)?.classList.toggle("sync-overlap", !!overlap);
+        for (const field of [".start-date", ".start-time"]) row.querySelector(field)?.classList.toggle("sync-overlap", !!overlap?.full);
         const select = row.querySelector(".task-action-select");
-        const existing = select.querySelector('option[value="splitOverlap"]');
-        if (overlap && !existing) {
-          const option = document.createElement("option");
-          option.value = "splitOverlap";
-          option.textContent = "超過時間分コピーして分割";
-          select.appendChild(option);
-        } else if (!overlap && existing) existing.remove();
+        const action = overlap ? (overlap.full ? "moveOverlap" : "splitOverlap") : null;
+        for (const value of ["splitOverlap", "moveOverlap"]) {
+          const existing = select.querySelector(`option[value="${value}"]`);
+          if (value !== action) existing?.remove();
+          else if (!existing) {
+            const option = document.createElement("option"); option.value = value;
+            option.textContent = value === "moveOverlap" ? "超過したタスクを下に移動" : "超過時間分コピーして分割";
+            select.appendChild(option);
+          }
+        }
       });
     }
 
