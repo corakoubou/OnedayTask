@@ -108,6 +108,7 @@
     .status-todo { background: #6c757d; }
     .status-doing { background: var(--warning); color: #222; }
     .status-done { background: var(--success); }
+    .status-partial { background: #655389; }
     .status-done-adjusted { background: #2f7d3d; }
 
 
@@ -537,6 +538,7 @@
 .timeline-tick { position: absolute; right: 6px; font: 12px Consolas, monospace; color: var(--muted); }
 .timeline-block { display: flex; flex-direction: column; justify-content: flex-start; align-items: stretch; position: absolute; padding: 3px 6px; background: #344f77; color: var(--text); border: 1px solid #6d89af; border-radius: 5px; overflow: hidden; cursor: grab; font-size: 13px; line-height: 1.35; text-align: left; touch-action: auto; }
 .timeline-block.is-doing { background: #795615; border-color: var(--warning); }
+.timeline-block.is-partial { background: #655389; border-color: #9b83bc; }
 .timeline-block.is-done { background: #2b503a; }
 .timeline-block.is-overlap, .timeline-block.is-overflow { background: #7a2020; border-color: #e46161; }
 .timeline-block strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -791,7 +793,7 @@
       ※ 同期ボタンは全行に対して「作業時間算出 → 同期処理」を実行するっす。<br />
       ※ Tab移動は 予定開始 → 予定終了 → タスク → 次の行 の順っす。<br />
       ※ 開始日時を変えると作業時間を保って終了日時も移動するっす。終了日時を変えると作業時間を再計算するっす。同期ONの開始日時は、同期を外してから編集するっす。<br />
-      ※ 「仕掛 → 完了」では確認後に状態だけ変更し、時刻は変更しないっす。「完了」を押すと「未着手に戻す／完了調整にする」を選択でき、完了調整を選んだ場合だけ再確認後に予定終了を現在時刻へ更新し、後続同期行へ連鎖反映するっす。<br />
+      ※ 「仕掛 → 完了」では確認後に状態だけ変更し、時刻は変更しないっす。「完了」を押すと「未着手／完了調整／途中やり」を選択でき、完了調整を選んだ場合だけ再確認後に予定終了を現在時刻へ更新し、後続同期行へ連鎖反映するっす。<br />
       ※ 日またぎ対応は有効で、作業時間は日付を含めて計算するっす。<br />
       ※ CSV出力では、表の内容を現在の並び順そのままで保存するっす。<br />
       ※ 初期表示と保存データ初期化後は、行が0件の状態になるっす。<br />
@@ -826,6 +828,8 @@
       <div class="status-choice-actions">
         <button id="statusChoiceAdjustBtn" type="button" class="btn-status-adjust">完了調整にする</button>
         <button id="statusChoiceResetBtn" type="button" class="btn-status-reset">未着手にする</button>
+        <button id="statusChoicePartialBtn" type="button" class="status-partial">途中やりにする</button>
+        <button id="statusChoiceDoneBtn" type="button" class="status-done" hidden>完了にする</button>
         <button id="statusChoiceCancelBtn" type="button" class="btn-status-cancel">キャンセル</button>
       </div>
     </div>
@@ -889,6 +893,7 @@
     const STATUS_DOING = "仕掛";
     const STATUS_DONE = "完了";
     const STATUS_DONE_ADJUSTED = "完了調整";
+    const STATUS_PARTIAL = "途中やり";
 
     let table = document.getElementById("taskTable");
     let tableBody = document.getElementById("taskTableBody");
@@ -1209,6 +1214,15 @@
     detailPanelSetting.addEventListener("change", () => setDetailPanelEnabled(detailPanelSetting.checked));
 
 
+
+    for (const [id, status] of [["statusChoicePartialBtn", STATUS_PARTIAL], ["statusChoiceDoneBtn", STATUS_DONE]]) {
+      document.getElementById(id).addEventListener("click", () => {
+        if (!statusChoiceTargetRow) return;
+        setStatus(statusChoiceTargetRow, status);
+        closeStatusChoiceDialog();
+        saveAll();
+      });
+    }
 
     statusChoiceResetBtn.addEventListener("click", () => {
       if (!statusChoiceTargetRow) return;
@@ -2099,6 +2113,7 @@
         }
 
         case STATUS_DONE:
+        case STATUS_PARTIAL:
           openStatusChoiceDialog(tr);
           break;
 
@@ -2123,12 +2138,20 @@
 
       if (text === STATUS_DOING) return STATUS_DOING;
       if (text === STATUS_DONE) return STATUS_DONE;
+      if (text === STATUS_PARTIAL) return STATUS_PARTIAL;
       if (text === STATUS_DONE_ADJUSTED) return STATUS_DONE_ADJUSTED;
       return STATUS_TODO;
     }
 
     function openStatusChoiceDialog(tr) {
       statusChoiceTargetRow = tr;
+      const partial = getStatusFromButton(tr.querySelector(".btn-status")) === STATUS_PARTIAL;
+      document.getElementById("statusChoiceTitle").textContent = partial ? "途中やりからの状態を選択" : "完了後の状態を選択";
+      statusChoiceModal.querySelector(".status-choice-message").textContent = partial
+        ? "完了調整・未着手・完了から選択してください。完了調整以外は日時を変更しません。"
+        : "完了調整・未着手・途中やりから選択してください。途中やりは区別用の状態で、日時は変更しません。";
+      document.getElementById("statusChoicePartialBtn").hidden = partial;
+      document.getElementById("statusChoiceDoneBtn").hidden = !partial;
       statusChoiceModal.classList.add("is-open");
       statusChoiceModal.setAttribute("aria-hidden", "false");
       statusChoiceCancelBtn.focus();
@@ -2192,7 +2215,8 @@
         [STATUS_TODO]: "status-todo",
         [STATUS_DOING]: "status-doing",
         [STATUS_DONE]: "status-done",
-        [STATUS_DONE_ADJUSTED]: "status-done-adjusted"
+        [STATUS_DONE_ADJUSTED]: "status-done-adjusted",
+        [STATUS_PARTIAL]: "status-partial"
       };
 
       const normalizedStatus = statusMap[status] ? status : STATUS_TODO;
@@ -2203,7 +2227,8 @@
         "status-todo",
         "status-doing",
         "status-done",
-        "status-done-adjusted"
+        "status-done-adjusted",
+        "status-partial"
       );
       btn.classList.add(statusMap[normalizedStatus]);
     }
@@ -3431,7 +3456,7 @@
           row.endDate = calculated.date; row.endTime = calculated.time;
         }
         row.sync = data.sync === true || data.sync === "ON" || data.sync === "true";
-        row.status = [STATUS_TODO, STATUS_DOING, STATUS_DONE, STATUS_DONE_ADJUSTED].includes(data.status) ? data.status : STATUS_TODO;
+        row.status = [STATUS_TODO, STATUS_DOING, STATUS_DONE, STATUS_DONE_ADJUSTED, STATUS_PARTIAL].includes(data.status) ? data.status : STATUS_TODO;
         row.taskDetail = "";
         return row;
       }
@@ -3780,6 +3805,7 @@
         else if (overlaps.has(item.row)) block.classList.add('is-overlap');
         else if (state === STATUS_DOING) block.classList.add('is-doing');
         else if (state === STATUS_DONE || state === STATUS_DONE_ADJUSTED) block.classList.add('is-done');
+        else if (state === STATUS_PARTIAL) block.classList.add('is-partial');
         if ((item.to - item.from) / 60000 * pxPerMinute < 40) block.classList.add("is-compact");
         block.style.cssText = `top:${(item.from - dayStart) / 60000 * pxPerMinute}px;height:${Math.max(18, (item.to - item.from) / 60000 * pxPerMinute)}px;left:calc(${item.lane / count * 100}% + 2px);width:calc(${100 / count}% - 4px);`;
         const title = document.createElement('strong'); title.textContent = name(item.row);
